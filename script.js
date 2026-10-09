@@ -304,6 +304,7 @@ function saveNewTask() {
                     id: Date.now().toString() + Math.random().toString(),
                     groupId: groupId, groupName: title, type: 'periodic', 
                     title: unitTitle, stage: stageIndex + 1, enableVocab: enableVocab, isVocab: enableVocab && stageIndex==0,
+                    vocabFont: document.getElementById('vocab-font-type')?.value || 'default',
                     dueDate: scheduledReviewDateStr, weight: weight, color: color, isCompleted: false
                 });
                 
@@ -715,6 +716,24 @@ function viewVocabWords(taskId) {
 function openVocabInput(taskId) {
   currentWorkingTask = tasks.find(t => t.id === taskId);
   document.getElementById('vocab-input-text').value = (currentWorkingTask.words || []).join('\n');
+
+  const fontSelect = document.getElementById('vocab-font-type');
+  const inputArea = document.getElementById('vocab-input-text');
+
+  // 還原選單的值
+  if (fontSelect) {
+    fontSelect.value = currentWorkingTask.vocabFont || 'default';
+  }
+
+  // 🌟 根據該任務的 vocabFont 決定要不要加上 class
+  if (inputArea) {
+    if (currentWorkingTask.vocabFont === 'jp' || currentWorkingTask.vocabFont === 'japanese') {
+      inputArea.classList.add('font-jp');
+    } else {
+      inputArea.classList.remove('font-jp');
+    }
+  }
+
   openModal('vocab-input-modal');
 }
 
@@ -756,6 +775,7 @@ function startVocabSession(taskId) {
   activeVocabSession = {
     taskId: taskId,
     words: [...targetWords], // 載入對應範圍的單字
+    fontType: task.vocabFont || 'default',
     currentIndex: 0,
     unlearnedNext: []
   };
@@ -777,7 +797,7 @@ function showNextWord() {
   displayEl.innerText = word;
   
   // 切換日文/預設字體
-  if (session.fontType === 'jp') {
+  if (session.fontType === 'jp' || session.fontType === 'japanese') {
     displayEl.classList.add('font-jp');
   } else {
     displayEl.classList.remove('font-jp');
