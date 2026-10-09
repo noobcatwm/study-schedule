@@ -1,3 +1,14 @@
+const APP_VERSION = "v1.1.1";
+
+const modalContent = document.querySelector('#tools-modal .modal-content');
+if (modalContent) {
+  modalContent.insertAdjacentHTML('beforeend', `
+    <div style="text-align: center; margin-top: 20px; font-size: 0.8rem; opacity: 0.5;">
+      ${APP_VERSION}
+    </div>
+  `);
+}
+
 const DB_TASKS = 'calendarTasksV4';
 const DB_CAPS = 'calendarCapsV4';
 const DB_COLORS = 'recentColorsV4';
