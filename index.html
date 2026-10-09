@@ -7,239 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <style>
-    :root {
-      --bg: #000000;
-      --card-bg: #1c1c1e;
-      --text: #ffffff;
-      --sub-text: #8e8e93;
-      --primary: #0a84ff;
-      --exam-red: #ff453a;
-      --success-green: #32d74b;
-      --warning-orange: #ff9f0a;
-      --border: #333333;
-    }
-    /* 淺色主題變數 */
-    body.light-theme {
-      --bg: #f2f2f7;
-      --card-bg: #ffffff;
-      --text: #000000;
-      --sub-text: #3c3c43;
-      --primary: #007aff;
-      --exam-red: #ff3b30;
-      --success-green: #34c759;
-      --warning-orange: #ff9500;
-      --border: #c7c7cc;
-    }
-    
-    /* 修正淺色模式下的過去日期與今天背景色 */
-    body.light-theme .day-cell.past-day {
-      background: #e5e5ea;
-    }
-    body.light-theme .day-cell.today {
-      background: #e1f5fe;
-    }
-    body.light-theme .capacity-row input {
-      background: #ffffff;
-    }
-    
-    * { 
-      box-sizing: border-box; 
-      /* 優先套用 Google 思源宋體，備用為蘋果官方繁體宋體 */
-      font-family: "Noto Serif TC", "Songti TC", "STSong", "Songti SC", "Source Han Serif TC", serif !important;
-    }
-    body {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      background: var(--bg);
-      color: var(--text);
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    /* 強制輸入框、按鈕、下拉選單統一使用思源宋體 */
-    input, button, select, textarea, select option {
-      font-family: "Noto Serif TC", "Songti TC", "STSong", "Songti SC", "Source Han Serif TC", serif !important;
-      -webkit-font-smoothing: antialiased;
-    }
-    
-    .header-area {
-      background: var(--card-bg);
-      padding-top: env(safe-area-inset-top, 20px);
-      border-bottom: 1px solid var(--border);
-      z-index: 10;
-    }
-    .header-title {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 15px; font-size: 1.2rem; font-weight: bold;
-    }
-    .tools-btn {
-      background: var(--border); color: var(--text); border: none;
-      padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer;
-    }
-    
-    /* 考試倒數計時橫幅 */
-    .exam-countdown-banner {
-      background: rgba(255, 69, 58, 0.15);
-      border-top: 1px solid rgba(255, 69, 58, 0.3);
-      border-bottom: 1px solid rgba(255, 69, 58, 0.3);
-      padding: 6px 15px;
-      font-size: 0.85rem;
-      color: var(--exam-red);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .exam-countdown-banner.empty {
-      color: var(--sub-text);
-      background: var(--card-bg);
-      border-color: var(--border);
-    }
-
-    .capacity-row, .week-header {
-      display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; padding: 5px 0;
-    }
-    .capacity-row { gap: 2px; padding: 0 5px 8px; }
-    .capacity-col input {
-      width: 90%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
-      border-radius: 4px; text-align: center; padding: 4px 0; font-size: 0.9rem;
-    }
-    .capacity-label { font-size: 0.7rem; color: var(--sub-text); margin-bottom: 2px; display: block; }
-    .week-header span { font-size: 0.8rem; color: var(--sub-text); }
-    
-    .calendar-scroll { flex: 1; overflow-y: auto; padding: 10px; }
-    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-    .month-divider {
-      grid-column: 1 / -1; font-size: 1.2rem; font-weight: bold;
-      padding: 15px 5px 5px; color: var(--primary);
-    }
-    .day-cell {
-      background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
-      min-height: 70px; padding: 4px; display: flex; flex-direction: column;
-      align-items: flex-start; cursor: pointer; position: relative;
-    }
-    
-    /* 過去日期樣式 (灰化) */
-    .day-cell.past-day {
-      background: #121212;
-      opacity: 0.55;
-    }
-    .day-cell.past-day .day-num {
-      color: var(--sub-text);
-    }
-
-    .day-cell.today { background: #1a2332; border: 1px solid var(--primary); }
-    .day-cell.exam-day { border: 1px solid var(--exam-red); box-shadow: inset 0 0 8px rgba(255,69,58,0.3); }
-    
-    /* 全部完成時的綠框樣式 */
-    .day-cell.all-completed {
-      border: 1px solid var(--success-green) !important;
-      box-shadow: inset 0 0 6px rgba(50,215,75,0.2);
-    }
-    .day-cell.all-completed .day-num {
-      color: var(--success-green);
-    }
-    .day-cell.today.all-completed {
-      background: rgba(50,215,75,0.1);
-    }
-
-    .day-num { font-size: 0.9rem; font-weight: bold; margin-bottom: 4px; }
-    .today .day-num { color: var(--prizmary); }
-    
-    .dots-container { display: flex; flex-wrap: wrap; gap: 2px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; }
-
-    .modal-overlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: flex-end; z-index: 100;
-    }
-    .modal-overlay.active { display: flex; }
-    .modal-content {
-      background: var(--card-bg); width: 100%; max-width: 500px; border-radius: 20px 20px 0 0;
-      padding: 20px; max-height: 85vh; overflow-y: auto; box-shadow: 0 -4px 15px rgba(0,0,0,0.5);
-    }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-    .modal-title { font-size: 1.3rem; font-weight: bold; }
-    .close-btn { background: none; border: none; color: var(--sub-text); font-size: 1.5rem; cursor: pointer; }
-
-    .task-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-    .task-item {
-      background: var(--bg); padding: 12px; border-radius: 10px;
-      display: flex; justify-content: space-between; align-items: center;
-      border-left: 4px solid var(--primary);
-    }
-    .task-item.completed { border-left-color: var(--success-green); }
-    .task-item.completed .task-title { text-decoration: line-through; color: var(--success-green); }
-    .task-info { display: flex; flex-direction: column; gap: 4px; flex: 1; }
-    .task-title { font-size: 1.05rem; font-weight: 500; }
-    .task-meta { font-size: 0.8rem; color: var(--sub-text); }
-    .task-actions { display: flex; gap: 8px; }
-    
-    .action-btn {
-      background: var(--border); color: var(--text); border: none;
-      padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; cursor: pointer;
-    }
-    .action-btn.complete-btn { background: var(--primary); color: white; }
-    .task-item.completed .complete-btn { background: var(--border); color: var(--sub-text); }
-
-    .form-group { margin-bottom: 15px; }
-    label { display: block; font-size: 0.85rem; color: var(--sub-text); margin-bottom: 5px; }
-    input[type="text"], input[type="number"], input[type="month"], select {
-      width: 100%; padding: 12px; border-radius: 8px;
-      background: var(--bg); color: var(--text); border: 1px solid var(--border); font-size: 1rem;
-    }
-    
-    .color-picker-row { display: flex; align-items: center; gap: 10px; }
-    input[type="color"] {
-      width: 40px; height: 40px; padding: 0; border: none; border-radius: 8px; cursor: pointer; background: none;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC", sans-serif !important;
-      font-size: 1rem;
-    }
-    .recent-colors { display: flex; gap: 8px; flex: 1; overflow-x: auto; }
-    .color-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid var(--border); }
-
-    .primary-btn {
-      width: 100%; padding: 14px; background: var(--primary); color: white;
-      border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer;
-    }
-    .primary-btn:active { opacity: 0.8; }
-    .hidden { display: none !important; }
-    .section-title { font-size: 1.1rem; font-weight: bold; color: var(--primary); margin: 25px 0 10px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
-  
-    /* 防止長按時選取到文字 */
-    body {
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    /* 讓任務項目支援拖曳鼠標，並確保 Modal 切換時有漸變動畫 */
-    .modal-overlay { transition: opacity 0.2s ease; }
-    .task-item { cursor: grab; }
-    .task-item:active { cursor: grabbing; }
-
-    /* 拖曳時目標日期的發光提示 */
-    .day-cell.drag-over { 
-      border: 2px dashed var(--primary) !important; 
-      background: rgba(10, 132, 255, 0.2) !important; 
-    }
-
-    /* 拖曳產生的浮空幽靈元素 */
-    .drag-ghost {
-      position: fixed; z-index: 9999; opacity: 0.9;
-      pointer-events: none; box-shadow: 0 10px 25px rgba(0,0,0,0.6);
-      transform: scale(1.05); margin: 0;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
-<body>
 
+<body>
   <div class="header-area">
     <div class="header-title">
       <span>排程行事曆</span> 
@@ -325,6 +99,11 @@
             清除指定月份
           </button>
         </div>
+
+        <button class="primary-btn" onclick="openVocabManagerFromTools()" style="width: 100%; padding: 12px; background: var(--sub-text); border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+          <span>檢視所有單字庫</span>
+          <span style="opacity: 0.5;">➔</span>
+        </button>
       </div>
 
       <div class="section-title">週期計畫管理 (Series)</div>
@@ -381,6 +160,19 @@
           <label>生成間隔 (天)</label>
           <input type="number" id="task-interval" value="2" min="1">
         </div>
+        <div class="form-group" style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed var(--border, #ccc);">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="enable-vocab" onchange="toggleVocabFontOption()"> 啟用輔助記憶 (背單字)
+          </label>
+          
+          <div id="font-option-box" style="margin-top:10px; display:none; align-items:center; gap:10px;">
+            <label style="font-size:0.85rem; opacity:0.8;">顯示字體：</label>
+            <select id="vocab-font-type" style="flex:1;">
+              <option value="default">預設字體 (思源宋體)</option>
+              <option value="jp">日本字體 (Noto Sans JP)</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div class="form-group" id="weight-group">
@@ -400,626 +192,90 @@
     </div>
   </div>
 
-  <script>
-    const DB_TASKS = 'calendarTasksV4';
-    const DB_CAPS = 'calendarCapsV4';
-    const DB_COLORS = 'recentColorsV4';
-    const REVIEW_INTERVALS = [0, 1, 4, 11, 25, 55];
+  <!-- Modal: 輸入單字 -->
+  <div id="vocab-input-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 id="vocab-input-title">輸入單字</h3>
+      <p style="font-size: 0.85rem; opacity: 0.7;">請輸入單字（每行一個單字，不需要寫意思）：</p>
+      <textarea id="vocab-input-text" rows="8" style="width:100%; margin:10px 0; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text);"></textarea>
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button class="action-btn" onclick="closeModal('vocab-input-modal')">取消</button>
+        <button class="action-btn" onclick="saveVocabInput()" style="background:var(--accent); color:#fff;">儲存單字</button>
+      </div>
+    </div>
+  </div>
 
-    let tasks = JSON.parse(localStorage.getItem(DB_TASKS) || '[]');
-    let capacities = JSON.parse(localStorage.getItem(DB_CAPS) || '[5,5,5,5,5,5,5]');
-    let recentColors = JSON.parse(localStorage.getItem(DB_COLORS) || '["#0a84ff", "#ff9f0a", "#bf5af2"]');
-    let selectedDateStr = "";
+  <!-- Modal 刷單字 UI (熟 / 不熟) -->
+  <div id="vocab-flashcard-modal" class="modal-overlay">
+    <div class="modal-content" style="text-align:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span id="vocab-progress" style="font-size:0.85rem; opacity:0.7;">1 / 10</span>
+        <button class="action-btn" onclick="closeModal('vocab-flashcard-modal')">退出</button>
+      </div>
+      <div class="flashcard-box">
+        <div id="flashcard-word-display" class="flashcard-word">Word</div>
+      </div>
+      <div style="display:flex; gap:15px; justify-content:center;">
+        <button class="action-btn" onclick="answerVocab(false)" style="flex:1; padding:12px; background:#ff3b30; color:white; border-radius:10px;">不熟</button>
+        <button class="action-btn" onclick="answerVocab(true)" style="flex:1; padding:12px; background:#34c759; color:white; border-radius:10px;">熟</button>
+      </div>
+    </div>
+  </div>
 
-    function formatDate(dateObj) {
-      const y = dateObj.getFullYear();
-      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const d = String(dateObj.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-
-    function renderCapacities() {
-      const days = ['日', '一', '二', '三', '四', '五', '六'];
-      const row = document.getElementById('capacity-row');
-      row.innerHTML = days.map((day, idx) => `
-        <div class="capacity-col">
-          <span class="capacity-label">${day}</span>
-          <input type="number" value="${capacities[idx]}" onchange="updateCapacity(${idx}, this.value)">
-        </div>
-      `).join('');
-    }
-
-    function updateCapacity(index, val) {
-      capacities[index] = parseInt(val) || 0;
-      localStorage.setItem(DB_CAPS, JSON.stringify(capacities));
-    }
-
-    function renderRecentColors() {
-      const container = document.getElementById('recent-colors');
-      container.innerHTML = recentColors.map(color => `
-        <div class="color-swatch" style="background-color: ${color}" onclick="selectColor('${color}')"></div>
-      `).join('');
-    }
-    
-    function selectColor(color) { document.getElementById('task-color').value = color; }
-
-    function addRecentColor(color) {
-      if (!recentColors.includes(color)) {
-        recentColors.unshift(color);
-        if (recentColors.length > 5) recentColors.pop();
-        localStorage.setItem(DB_COLORS, JSON.stringify(recentColors));
-        renderRecentColors();
-      }
-    }
-
-    // 更新考試倒數計時橫幅
-    function updateExamCountdown() {
-      const banner = document.getElementById('countdown-banner');
-      const todayStr = formatDate(new Date());
+  <!-- Modal 檢視/管理所有單字庫 -->
+  <div id="vocab-manager-modal" class="modal-overlay">
+    <!-- 設定 Flex 垂直佈局與 500px 基礎高度 -->
+    <div class="modal-content" style="display: flex; flex-direction: column; max-height: 90vh; height: 90vh;">
+      <h3 style="margin: 0;">檢視所有單字庫</h3>
       
-      // 找出未來最近的一場考試
-      let upcomingExams = tasks.filter(t => t.type === 'exam' && t.dueDate >= todayStr)
-                               .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-                               
-      if (upcomingExams.length === 0) {
-        banner.className = 'exam-countdown-banner empty';
-        banner.innerHTML = '<span>尚無近期考試</span>';
-        return;
-      }
+      <!-- 讓單字庫清單 flex: 1 自動填滿中間空間，並加微邊框提升滾動質感 -->
+      <div id="vocab-group-list" style="flex: 1; overflow-y: auto; margin: 15px 0; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px;"></div>
       
-      let nextExam = upcomingExams[0];
-      let examDate = new Date(nextExam.dueDate);
-      let today = new Date();
-      today.setHours(0,0,0,0);
+      <button class="action-btn" onclick="closeModal('vocab-manager-modal')" style="width:100%; margin-top: 5px;">關閉</button>
+    </div>
+  </div>
+  
+  <!-- Modal 單元 Unit 列表 -->
+  <div id="vocab-units-modal" class="modal-overlay">
+    <div class="modal-content" style="display: flex; flex-direction: column; max-height: 90vh; height: 90 vh;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 id="vocab-units-title" style="margin: 0;">單元列表</h3>
+        <button class="action-btn" onclick="closeModal('vocab-units-modal'); openModal('vocab-manager-modal');">← 返回主題庫</button>
+      </div>
       
-      let diffTime = examDate - today;
-      let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))-1;
+      <!-- 該主題下的各個 Unit / 任務單元清單 -->
+      <div id="vocab-unit-list" style="flex: 1; overflow-y: auto; margin: 15px 0; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px;"></div>
       
-      banner.className = 'exam-countdown-banner';
-      if (diffDays === 0) {
-        banner.innerHTML = `<span>[倒數] ${nextExam.title} 就在今天！</span><span>考試加油！</span>`;
-      } else {
-        banner.innerHTML = `<span>[倒數] ${nextExam.title}</span><span>還有 ${diffDays} 天 (${nextExam.dueDate})</span>`;
-      }
-    }
+      <button class="action-btn" onclick="closeModal('vocab-units-modal')" style="width:100%; margin-top: 5px;">關閉</button>
+    </div>
+  </div>
 
-    function renderCalendar() {
-      updateExamCountdown();
-      const grid = document.getElementById('calendar-grid');
-      grid.innerHTML = '';
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const todayStr = formatDate(today);
+  <!-- Modal 單字庫內部單字檢視與編輯 Modal -->
+  <div id="vocab-detail-modal" class="modal-overlay">
+    <!-- 1. 將 modal-content 改為 flex 垂直佈局，並設定固定高高度與最大高度限制 -->
+    <div class="modal-content" style="display: flex; flex-direction: column; max-height: 90vh; height: 90vh;">
       
-      let startMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 id="vocab-detail-title" style="margin: 0;">單字列表</h3>
+        <select id="vocab-font-select" onchange="changeVocabGroupFont()" style="padding:4px 8px;">
+          <option value="default">預設字體</option>
+          <option value="jp">日本字體</option>
+        </select>
+      </div>
       
-      for (let m = 0; m < 13; m++) {
-        let currentMonth = new Date(startMonth.getFullYear(), startMonth.getMonth() + m, 1);
-        let year = currentMonth.getFullYear();
-        let month = currentMonth.getMonth();
-        
-        const monthTitle = document.createElement('div');
-        monthTitle.className = 'month-divider';
-        monthTitle.innerText = `${year}年 ${month + 1}月`;
-        grid.appendChild(monthTitle);
-        
-        let firstDayIndex = new Date(year, month, 1).getDay();
-        let daysInMonth = new Date(year, month + 1, 0).getDate();
-        
-        for (let i = 0; i < firstDayIndex; i++) grid.appendChild(document.createElement('div'));
-        
-        for (let d = 1; d <= daysInMonth; d++) {
-          let dateObj = new Date(year, month, d);
-          dateObj.setHours(0,0,0,0);
-          let dateStr = formatDate(dateObj);
-          
-          let cell = document.createElement('div');
-          cell.className = 'day-cell';
-          cell.setAttribute('data-date', dateStr);
-          
-          // 判斷是否為過去日期
-          if (dateObj < today) {
-            cell.classList.add('past-day');
-          }
-          
-          if (dateStr === todayStr) {
-            cell.classList.add('today');
-          }
-          
-          let dayTasks = tasks.filter(t => t.dueDate === dateStr);
-          if (dayTasks.some(t => t.type === 'exam')) {
-            cell.classList.add('exam-day');
-          }
-          
-          // 判斷當天是否所有任務皆已完成
-          if (dateStr === todayStr && (dayTasks.length === 0 || dayTasks.every(t => t.isCompleted))) {
-            cell.classList.add('all-completed');
-          }
-          
-          let dotsHtml = dayTasks.filter(t => t.type !== 'exam').map(t => 
-            `<div class="dot" style="background-color: ${t.color}"></div>`
-          ).join('');
-          
-          cell.innerHTML = `<div class="day-num">${d}</div><div class="dots-container">${dotsHtml}</div>`;
-          cell.onclick = () => openDayModal(dateStr);
-          grid.appendChild(cell);
-        }
-      }
-    }
+      <!-- 新增單字輸入框 -->
+      <div style="display:flex; gap:5px; margin:15px 0 10px 0;">
+        <input type="text" id="new-single-vocab" placeholder="新增單字..." style="flex:1;">
+        <button class="action-btn" onclick="addSingleVocab()">新增</button>
+      </div>
 
-    function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
-    function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
-
-    function openDayModal(dateStr) {
-      selectedDateStr = dateStr;
-      document.getElementById('day-modal-title').innerText = dateStr;
-      renderTaskList(dateStr);
-      openModal('day-modal');
-    }
-
-    function openAddTaskModal() {
-      closeModal('day-modal');
-      document.getElementById('task-type').value = 'study';
-      document.getElementById('task-title').value = '';
-      toggleFormFields();
-      openModal('add-modal');
-    }
-
-    function toggleFormFields() {
-      const type = document.getElementById('task-type').value;
-      const pFields = document.getElementById('periodic-fields');
-      const eFields = document.getElementById('exam-fields');
-      const wGroup = document.getElementById('weight-group');
-      const cGroup = document.getElementById('color-group');
-      const tLabel = document.getElementById('title-label');
-
-      if (type === 'exam') {
-        pFields.classList.add('hidden'); eFields.classList.remove('hidden');
-        wGroup.classList.remove('hidden'); cGroup.classList.add('hidden');
-        tLabel.innerText = "考試科目 / 名稱";
-      } else if (type === 'periodic') {
-        pFields.classList.remove('hidden'); eFields.classList.add('hidden');
-        wGroup.classList.remove('hidden'); cGroup.classList.remove('hidden');
-        tLabel.innerText = "主題名稱前綴 (例: 英文單字 Unit)";
-      } else {
-        pFields.classList.add('hidden'); eFields.classList.add('hidden');
-        wGroup.classList.remove('hidden'); cGroup.classList.remove('hidden');
-        tLabel.innerText = "讀書計畫名稱";
-      }
-    }
-
-    function renderTaskList(dateStr) {
-      const list = document.getElementById('task-list');
-      const dayTasks = tasks.filter(t => t.dueDate === dateStr);
+      <!-- 2. 將 flex: 1 與 max-height 放開，讓單字列表區塊自動塞滿中間高度 -->
+      <div id="vocab-words-list" style="flex: 1; overflow-y: auto; margin: 10px 0; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px;"></div>
       
-      if (dayTasks.length === 0) {
-        list.innerHTML = '<div style="color:var(--sub-text); text-align:center;">無排定計畫。</div>';
-        return;
-      }
+      <button class="action-btn" onclick="closeModal('vocab-detail-modal')" style="width:100%; margin-top: 5px;">返回</button>
+    </div>
+  </div>
 
-      list.innerHTML = dayTasks.map(t => {
-        let badge = t.type === 'exam' ? '[警戒] 考試' : (t.type === 'periodic' ? `[階段 ${t.stage}]` : '[讀書]');
-        let weightTxt = t.type !== 'exam' ? ` | 負荷: ${t.weight}` : '';
-        let colorStyle = t.type !== 'exam' ? t.color : 'var(--exam-red)';
-        
-        return `
-        <div class="task-item ${t.isCompleted ? 'completed' : ''}" style="border-left-color: ${colorStyle}"
-             onmousedown="initDrag(event, '${t.id}')" ontouchstart="initDrag(event, '${t.id}')">
-          <div class="task-info">
-            <div class="task-title">${t.title}</div>
-            <div class="task-meta">${badge} | 負荷: ${t.weight || 0}</div>
-          </div>
-          <div class="task-actions">
-            <button class="action-btn complete-btn" onclick="toggleComplete('${t.id}')">${t.isCompleted ? '取消' : '完成'}</button>
-            <button class="action-btn" onclick="deleteTask('${t.id}')">刪除</button>
-          </div>
-        </div>
-        `;
-      }).join('');
-    }
-
-    function toggleComplete(id) {
-      let t = tasks.find(x => x.id === id);
-      if (t) t.isCompleted = !t.isCompleted;
-      saveAndRefresh();
-    }
-
-    function deleteTask(id) {
-      if(confirm('確定要刪除？')) {
-        tasks = tasks.filter(x => x.id !== id);
-        saveAndRefresh();
-      }
-    }
-
-    function getDailyLoad(dateStr, pendingTasks = []) {
-      let load1 = tasks.filter(t => t.dueDate === dateStr && !t.isCompleted && t.type !== 'exam')
-                  .reduce((sum, t) => sum + (t.weight || 0), 0);
-      let load2 = pendingTasks.filter(t => t.dueDate === dateStr && !t.isCompleted && t.type !== 'exam')
-                  .reduce((sum, t) => sum + (t.weight || 0), 0);
-      return load1 + load2;
-    }
-
-    function findAvailableDate(targetDateObj, weightToAdd, pendingTasks = []) {
-      let curr = new Date(targetDateObj);
-      while (true) {
-        let dateStr = formatDate(curr);
-        let maxCap = capacities[curr.getDay()];
-        if (getDailyLoad(dateStr, pendingTasks) + weightToAdd <= maxCap) return dateStr;
-        curr.setDate(curr.getDate() + 1);
-      }
-    }
-
-    function saveNewTask() {
-      const type = document.getElementById('task-type').value;
-      const title = document.getElementById('task-title').value.trim();
-      const weight = parseInt(document.getElementById('task-weight').value) || 0;
-      const color = document.getElementById('task-color').value;
-
-      if (!title) return alert("請輸入名稱");
-      if (type !== 'exam') addRecentColor(color);
-
-      if (type === 'study') {
-        tasks.push({
-          id: Date.now().toString(), type: type, title: title, dueDate: selectedDateStr,
-          weight: weight, color: color, isCompleted: false
-        });
-      } 
-      else if (type === 'exam') {
-        const duration = parseInt(document.getElementById('exam-duration').value) || 1;
-        let currD = new Date(selectedDateStr);
-        for(let i = 0; i < duration; i++) {
-          tasks.push({
-            id: Date.now().toString() + i, type: 'exam', 
-            title: title + (duration > 1 ? ` (Day ${i+1})` : ''), 
-            dueDate: formatDate(currD), weight: 0, color: 'var(--exam-red)', isCompleted: false
-          });
-          currD.setDate(currD.getDate() + 1);
-        }
-      } 
-      else if (type === 'periodic') {
-        const startUnit = parseInt(document.getElementById('task-start-unit').value) || 1;
-        const units = parseInt(document.getElementById('task-units').value) || 1;
-        const interval = parseInt(document.getElementById('task-interval').value) || 1;
-        
-        let baseDate = new Date(selectedDateStr);
-        let groupId = "G_" + Date.now().toString();
-        let newTasks = [];
-        let maxDate = new Date(baseDate);
-        
-        for (let u = startUnit; u < startUnit + units; u++) {
-          let unitTitle = `${title} ${u}`;
-          let firstStudyDate = new Date(baseDate);
-          firstStudyDate.setDate(firstStudyDate.getDate() + (u - startUnit) * interval);
-          
-          let actualFirstDateStr = findAvailableDate(firstStudyDate, weight, newTasks);
-          let lastScheduledDateObj = new Date(actualFirstDateStr);
-          let lastIntervalDays = 0;
-          
-          REVIEW_INTERVALS.forEach((intervalDays, stageIndex) => {
-            let daysToAdd = intervalDays - lastIntervalDays;
-            let idealReviewDate = new Date(lastScheduledDateObj);
-            idealReviewDate.setDate(idealReviewDate.getDate() + daysToAdd);
-            
-            let scheduledReviewDateStr = findAvailableDate(idealReviewDate, weight, newTasks);
-            let scheduledDateObj = new Date(scheduledReviewDateStr);
-            if(scheduledDateObj > maxDate) maxDate = scheduledDateObj;
-            
-            newTasks.push({
-              id: Date.now().toString() + Math.random().toString(),
-              groupId: groupId, groupName: title, type: 'periodic', 
-              title: unitTitle, stage: stageIndex + 1,
-              dueDate: scheduledReviewDateStr, weight: weight, color: color, isCompleted: false
-            });
-            
-            lastScheduledDateObj = scheduledDateObj;
-            lastIntervalDays = intervalDays;
-          });
-        }
-        
-        let twelveMonthsLater = new Date();
-        twelveMonthsLater.setMonth(twelveMonthsLater.getMonth() + 12);
-        if (maxDate > twelveMonthsLater) {
-           if (!confirm(`警告：因為負荷量考量，此系列排程最晚將跨越到 ${formatDate(maxDate)}，超過一年！確定要繼續嗎？`)) {
-               return;
-           }
-        }
-        
-        tasks = tasks.concat(newTasks);
-        alert(`成功排入 ${units} 個單元！`);
-      }
-
-      closeModal('add-modal');
-      saveAndRefresh();
-      openDayModal(selectedDateStr);
-    }
-
-    function openToolsModal() {
-      const today = new Date();
-      document.getElementById('clear-month-input').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
-      
-      const pmList = document.getElementById('periodic-manager-list');
-      let groups = {};
-      
-      tasks.forEach(t => {
-         if (t.type === 'periodic' && t.groupId) {
-            if (!groups[t.groupId]) groups[t.groupId] = { name: t.groupName, total: 0, completed: 0, color: t.color };
-            groups[t.groupId].total++;
-            if (t.isCompleted) groups[t.groupId].completed++;
-         }
-      });
-      
-      const groupKeys = Object.keys(groups);
-      if(groupKeys.length === 0) {
-        pmList.innerHTML = '<div style="color:var(--sub-text); text-align:center;">目前無週期計畫。</div>';
-      } else {
-        pmList.innerHTML = groupKeys.map(gId => {
-           let g = groups[gId];
-           return `
-             <div class="task-item" style="border-left-color: ${g.color}; flex-direction: column; align-items: flex-start; gap: 10px;">
-               <div style="display:flex; justify-content:space-between; width:100%;">
-                 <span style="font-weight:bold;">${g.name}</span>
-                 <span style="font-size:0.8rem; color:var(--sub-text);">總進度: ${g.completed}/${g.total}</span>
-               </div>
-               <div style="display:flex; gap:10px; width:100%;">
-                 <button class="action-btn" style="flex:1;" onclick="deletePeriodicGroup('${gId}')">刪除整個群組</button>
-               </div>
-             </div>
-           `;
-        }).join('');
-      }
-      
-      openModal('tools-modal');
-    }
-
-    function delayAllTasks() {
-      if(!confirm("確定要將今天起的所有計畫 (不含考試) 順延一天嗎？")) return;
-      const todayStr = formatDate(new Date());
-      tasks.forEach(t => {
-        if (t.type !== 'exam' && !t.isCompleted && t.dueDate >= todayStr) {
-          let d = new Date(t.dueDate);
-          d.setDate(d.getDate() + 1);
-          t.dueDate = formatDate(d);
-        }
-      });
-      saveAndRefresh();
-      alert("計畫已全數順延！好好休息。");
-    }
-
-    function clearSpecificMonth() {
-      const monthVal = document.getElementById('clear-month-input').value; 
-      if(!monthVal) return alert("請選擇月份");
-      if(!confirm(`確定要清除 [ ${monthVal} ] 的所有計畫嗎？(考試將被保留)`)) return;
-      
-      tasks = tasks.filter(t => {
-        if (t.dueDate.startsWith(monthVal) && t.type !== 'exam') return false;
-        return true;
-      });
-      saveAndRefresh();
-      alert(`${monthVal} 的計畫已清除！`);
-      openToolsModal();
-    }
-
-    function deletePeriodicGroup(groupId) {
-      if(!confirm("確定要刪除此週期計畫嗎？(所有與此相關的已排定、未排定任務都會移除)")) return;
-      tasks = tasks.filter(t => t.groupId !== groupId);
-      saveAndRefresh();
-      openToolsModal();
-    }
-
-    function saveAndRefresh() {
-      localStorage.setItem(DB_TASKS, JSON.stringify(tasks));
-      renderCalendar();
-      if (document.getElementById('day-modal').classList.contains('active')) {
-        renderTaskList(selectedDateStr);
-      }
-    }
-
-    const DB_THEME = 'calendarThemeV4';
-
-    // 切換主題函式
-    function toggleTheme() {
-      const body = document.body;
-      body.classList.toggle('light-theme');
-      const isLight = body.classList.contains('light-theme');
-      
-      localStorage.setItem(DB_THEME, isLight ? 'light' : 'dark');
-      updateThemeButtonText();
-    }
-
-    function updateThemeButtonText() {
-      const isLight = document.body.classList.contains('light-theme');
-      const btn = document.getElementById('theme-btn');
-      if (btn) {
-        btn.innerText = isLight ? '深色' : '淺色';
-      }
-    }
-
-    function exportData() {
-      const data = {
-        tasks: tasks,
-        capacities: capacities,
-        recentColors: recentColors,
-        theme: localStorage.getItem(DB_THEME) || 'dark'
-      };
-      // 將資料轉成 JSON 文字並製作成 Blob 檔案
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `我的行事曆備份_${formatDate(new Date())}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    // === 資料匯入 (還原) ===
-    function importData(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const data = JSON.parse(e.target.result);
-          if (data.tasks && Array.isArray(data.tasks)) {
-            // 覆蓋目前資料
-            tasks = data.tasks;
-            if (data.capacities) capacities = data.capacities;
-            if (data.recentColors) recentColors = data.recentColors;
-            
-            // 處理主題顏色
-            if (data.theme) {
-              localStorage.setItem(DB_THEME, data.theme);
-              if (data.theme === 'light') document.body.classList.add('light-theme');
-              else document.body.classList.remove('light-theme');
-              if (typeof updateThemeButtonText === 'function') updateThemeButtonText();
-            }
-            
-            // 儲存並重新渲染畫面
-            saveAndRefresh();
-            renderCapacities();
-            renderRecentColors();
-            alert("資料還原成功！");
-            closeModal('tools-modal');
-          } else {
-            alert("無效的備份檔案格式！");
-          }
-        } catch (err) {
-          alert("讀取檔案失敗，檔案可能損毀。");
-        }
-      };
-      reader.readAsText(file);
-      event.target.value = ''; // 清空選擇，允許重複匯入同一個檔案
-    }
-
-    const savedTheme = localStorage.getItem(DB_THEME);
-    if (savedTheme === 'light') {
-      document.body.classList.add('light-theme');
-    }
-    updateThemeButtonText();
-
-    renderCapacities();
-    renderRecentColors();
-    renderCalendar();
-    
-    setTimeout(() => {
-      document.getElementById('calendar-scroll').scrollTop = 200; 
-    }, 100);
-
-    // ============================================
-    // 長按拖曳核心邏輯 (Drag and Drop)
-    // ============================================
-    let dragTimer = null;
-    let isDragging = false;
-    let dragGhost = null;
-    let draggedTaskId = null;
-    let targetDateStr = null;
-    let startX = 0, startY = 0;
-
-    function initDrag(e, taskId) {
-      if (e.target.tagName.toLowerCase() === 'button') return;
-      
-      draggedTaskId = taskId;
-      let touch = e.type.includes('touch') ? e.touches[0] : e;
-      startX = touch.clientX;
-      startY = touch.clientY;
-      let targetEl = e.currentTarget;
-
-      dragTimer = setTimeout(() => {
-        isDragging = true;
-        if (navigator.vibrate) navigator.vibrate(50);
-        
-        document.getElementById('day-modal').style.opacity = '0';
-        document.getElementById('day-modal').style.pointerEvents = 'none';
-        
-        dragGhost = targetEl.cloneNode(true);
-        dragGhost.className = 'task-item drag-ghost';
-        dragGhost.style.width = targetEl.offsetWidth + 'px';
-        document.body.appendChild(dragGhost);
-        
-        moveGhost(startX, startY);
-
-        document.addEventListener('touchmove', handleDragMove, {passive: false});
-        document.addEventListener('touchend', handleDragEnd);
-        document.addEventListener('mousemove', handleDragMove, {passive: false});
-        document.addEventListener('mouseup', handleDragEnd);
-      }, 400);
-
-      document.addEventListener('touchmove', cancelDrag, {once: true});
-      document.addEventListener('touchend', cancelDrag, {once: true});
-      document.addEventListener('mousemove', cancelDrag, {once: true});
-      document.addEventListener('mouseup', cancelDrag, {once: true});
-    }
-
-    function cancelDrag(e) {
-      if (e && e.type.includes('move')) {
-        let touch = e.type.includes('touch') ? e.touches[0] : e;
-        if (Math.abs(touch.clientX - startX) < 10 && Math.abs(touch.clientY - startY) < 10) return;
-      }
-      clearTimeout(dragTimer);
-    }
-
-    function moveGhost(x, y) {
-      if (!dragGhost) return;
-      dragGhost.style.left = (x - (dragGhost.offsetWidth / 2)) + 'px';
-      dragGhost.style.top = (y - 30) + 'px'; 
-    }
-
-    function handleDragMove(e) {
-      if (!isDragging) return;
-      e.preventDefault(); 
-      let touch = e.type.includes('touch') ? e.touches[0] : e;
-      moveGhost(touch.clientX, touch.clientY);
-
-      dragGhost.style.display = 'none'; 
-      let elemUnder = document.elementFromPoint(touch.clientX, touch.clientY);
-      dragGhost.style.display = 'flex';
-
-      document.querySelectorAll('.day-cell').forEach(c => c.classList.remove('drag-over'));
-      if (elemUnder) {
-        let cell = elemUnder.closest('.day-cell');
-        if (cell) {
-          cell.classList.add('drag-over');
-          targetDateStr = cell.getAttribute('data-date');
-        } else {
-          targetDateStr = null;
-        }
-      }
-    }
-
-    function handleDragEnd(e) {
-      if (!isDragging) return;
-      isDragging = false;
-      
-      if (dragGhost) {
-        dragGhost.remove();
-        dragGhost = null;
-      }
-      dragGhost = null;
-      document.querySelectorAll('.day-cell').forEach(c => c.classList.remove('drag-over'));
-      
-      const modal = document.getElementById('day-modal');
-      modal.style.opacity = '1';
-      modal.style.pointerEvents = '';
-
-      document.removeEventListener('touchmove', handleDragMove);
-      document.removeEventListener('touchend', handleDragEnd);
-      document.removeEventListener('mousemove', handleDragMove);
-      document.removeEventListener('mouseup', handleDragEnd);
-
-      if (targetDateStr && targetDateStr !== selectedDateStr) {
-        let task = tasks.find(t => t.id === draggedTaskId);
-        if (task) {
-          task.dueDate = targetDateStr;
-          saveAndRefresh();
-          
-          document.getElementById('day-modal').style.pointerEvents = '';
-          closeModal('day-modal'); 
-        }
-      } else {
-        document.getElementById('day-modal').style.opacity = '1';
-        document.getElementById('day-modal').style.pointerEvents = '';
-      }
-    }
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
