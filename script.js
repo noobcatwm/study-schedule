@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.1.1";
+const APP_VERSION = "v1.1.2";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
@@ -635,7 +635,7 @@ function toggleVocabFontOption() {
 }
 
 let currentWorkingTask = null; // 當前操作的任務
-let activeVocabSession = { words: [], unlearned: [], currentIndex: 0, fontType: 'default', taskId: null };
+let activeVocabSession = { words: [], unlearnedNext: [], currentIndex: 0, fontType: 'default', taskId: null };
 let currentManagingGroupId = null; // 進階設定目前管理的單字組
 
 // 1. 在任務資料結構中，新增欄位：
@@ -671,7 +671,7 @@ function renderTaskButtons(task) {
         }
     }
 
-    if (task.isVocabReviewTask || task.type === 'vocab_review') {
+    if (task.type === 'vocab_review') {
         const completeBtnText = task.isCompleted ? '已完成' : '完成';
         const completeBtnStyle = task.isCompleted ? 'opacity: 0.6;' : '';
         
@@ -704,9 +704,18 @@ function toggleTaskComplete(taskId) {
   }
 }
 
+function getStage1TaskByTitle(task) {
+  if (!task) return null;
+  if (task.stage === 1) return task;
+  
+  const stage1 = tasks.find(t => t.title === task.title && t.stage === 1);
+  return stage1 || task;
+}
+
+
 // 點擊 [檢視] 按鈕時呼叫
 function viewVocabWords(taskId) {
-  const task = tasks.find(t => t.id === taskId);
+  const task = getStage1TaskByTitle(tasks.find(t => t.id === taskId));
   if (!task) return;
 
   // 借用單字詳情 modal 來顯示
@@ -754,15 +763,15 @@ function saveVocabInput() {
   const list = text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
   
   if (currentWorkingTask) {
-    currentWorkingTask.words = list;
-    currentWorkingTask.unlearnedWords = [...list]; // 初次預設全為待複習
-    currentWorkingTask.vocabState = 'ready'; // 狀態轉為可開始
+    const baseTask = getStage1TaskByTitle(currentWorkingTask)
+    baseTask.words = list;
+    baseTask.unlearnedWords = [...list]; // 初次預設全為待複習
+    baseTask.vocabState = 'ready'; // 狀態轉為可開始
     saveAndRefresh();
   }
   closeModal('vocab-input-modal');
   // 重新打開當天詳細視窗以刷新按鈕狀態
   openDayModal(selectedDateStr);
-  console.log(tasks.filter(t => t.isVocab));
 }
 
 // 5. 開始「刷單字」（熟 / 不熟 UI）
@@ -770,12 +779,14 @@ function startVocabSession(taskId) {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
 
-  // 🌟 判定測驗清單：如果本身是待複習卡片，只載入不熟單字(unlearnedWords)；否則載入全部單字(words)
+  const baseTask = getStage1TaskByTitle(task)
+
+  // 判定測驗清單：如果本身是待複習卡片，只載入不熟單字(unlearnedWords)；否則載入全部單字(words)
   let targetWords = [];
-  if (task.isVocabReviewTask || task.type === 'vocab_review') {
-    targetWords = task.unlearnedWords && task.unlearnedWords.length > 0 ? task.unlearnedWords : task.words;
+  if (task.type === 'vocab_review') {
+    targetWords = task.unlearnedWords && task.unlearnedWords.length > 0 ? task.unlearnedWords : baseTask.words;
   } else {
-    targetWords = task.words || [];
+    targetWords = baseTask.words || [];
   }
 
   if (!targetWords || targetWords.length === 0) {
@@ -840,7 +851,7 @@ function finishVocabSession() {
     currentTask.isCompleted = true; // 原任務標記完成
 
     // 🌟 如果當前已經是「待複習單字」任務，做完直接結束，不重複生成
-    if (currentTask.isVocabReviewTask || currentTask.type === 'vocab_review') {
+    if (currentTask.type === 'vocab_review') {
       saveAndRefresh();
       if (typeof openDayModal === 'function' && selectedDateStr) openDayModal(selectedDateStr);
       return;
@@ -858,9 +869,9 @@ function finishVocabSession() {
         type: 'vocab_review',
         title: `待複習單字 (${unitName})`,
         dueDate: selectedDateStr, // 新增到當天
+        stage: 1,
         
         isVocab: true,
-        isVocabReviewTask: true,
         // 🌟 核心：待複習任務的 words 裡面「只有不熟的單字」
         words: [...activeVocabSession.unlearnedNext],
         unlearnedWords: [...activeVocabSession.unlearnedNext],
@@ -873,19 +884,6 @@ function finishVocabSession() {
       };
 
       tasks.push(newReviewTask);
-    }
-
-    // 順便把單字更新給下一個複習階段的任務（保持資料同步）
-    const nextStage = (currentTask.stage || 1) + 1;
-    const nextTask = tasks.find(t => 
-      (t.groupName === currentTask.groupName || t.title === currentTask.title) && t.stage === nextStage
-    );
-    if (nextTask) {
-      nextTask.isVocab = true;
-      nextTask.words = [...(currentTask.words || [])];
-      nextTask.unlearnedWords = [...activeVocabSession.unlearnedNext];
-      nextTask.vocabFont = currentTask.vocabFont || 'default';
-      nextTask.vocabState = 'ready';
     }
 
     saveAndRefresh();
@@ -914,7 +912,7 @@ function openVocabManager() {
   listContainer.innerHTML = '';
 
   // 篩選出所有含有單字的單字任務
-  const vocabTasks = tasks.filter(t => (t.isVocab || t.enableVocab) && !t.isVocabReviewTask && t.type !== 'vocab_review' && t.words && t.words.length > 0);
+  const vocabTasks = tasks.filter(t => (t.isVocab || t.enableVocab) && t.type !== 'vocab_review' && t.words && t.words.length > 0 && t.stage == 1);
 
   if (vocabTasks.length === 0) {
     listContainer.innerHTML = '<p style="text-align:center; opacity:0.5; padding: 20px 0;">目前沒有任何單字庫</p>';
@@ -957,13 +955,12 @@ function openVocabManager() {
 function deleteVocabGroupTitle(groupTitle) {
   if (!confirm(`確定要刪除「${groupTitle}」整個主題單字庫嗎？\n（這會清空此主題下所有 Unit 的單字）`)) return;
 
-  tasks.forEach(t => {
-    if (t.title === groupTitle) {
-      t.words = [];
-      t.unlearnedWords = [];
-      t.vocabState = 'need_input';
-    }
-  });
+  const stage1 = tasks.find(t => t.title === groupTitle && t.stage === 1);
+  if (stage1) {
+    stage1.words = [];
+    stage1.unlearnedWords = [];
+    stage1.vocabState = 'need-input';
+  }
 
   saveAndRefresh();
   openVocabManager();
@@ -981,7 +978,7 @@ function openVocabUnitsModal(mainTitle) {
   listContainer.innerHTML = '';
 
   // 取得屬於該主題的所有任務，並按 Unit (階段1) 不重複歸類
-  const unitTasks = tasks.filter(t => { const taskGroup = t.groupName || t.title.replace(/\s+\d+$/, ''); return taskGroup === mainTitle && (t.isVocab || t.enableVocab) && !t.isVocabReviewTask && t.type !== 'vocab_review'; });
+  const unitTasks = tasks.filter(t => { const taskGroup = t.groupName || t.title.replace(/\s+\d+$/, ''); return taskGroup === mainTitle && (t.isVocab || t.enableVocab) && t.type !== 'vocab_review'; });
 
   // 只取每個 Unit 的代表任務（例如取 stage === 1 的那筆代表該 Unit）
   const uniqueUnits = {};
@@ -1044,7 +1041,7 @@ function openVocabGroupDetail(taskId) {
   closeModal('vocab-units-modal'); // 關閉第二層
   currentManagingGroupId = taskId;
   
-  const task = tasks.find(t => t.id === taskId);
+  const task = getStage1TaskByTitle(tasks.find(t => t.id === taskId));
   document.getElementById('vocab-detail-title').innerText = task.unitName || task.title;
   document.getElementById('vocab-font-select').value = task.vocabFont || 'default';
 
@@ -1060,7 +1057,7 @@ function openVocabManagerFromTools() {
 // 開啟單字庫內部清單
 function openVocabGroupDetail(taskId) {
   currentManagingGroupId = taskId;
-  const task = tasks.find(t => t.id === taskId);
+  const task = getStage1TaskByTitle(tasks.find(t => t.id === taskId));
   
   document.getElementById('vocab-detail-title').innerText = task.title;
   document.getElementById('vocab-font-select').value = task.vocabFont || 'default';
@@ -1070,7 +1067,7 @@ function openVocabGroupDetail(taskId) {
 }
 
 function renderVocabWordsList() {
-  const task = tasks.find(t => t.id === currentManagingGroupId);
+  const task = getStage1TaskByTitle(tasks.find(t => t.id === currentManagingGroupId));
   const container = document.getElementById('vocab-words-list');
   container.innerHTML = '';
 
@@ -1093,15 +1090,10 @@ function addSingleVocab() {
   const val = input.value.trim();
   if (!val) return;
 
-  const task = tasks.find(t => t.id === currentManagingGroupId);
+  const task = getStage1TaskByTitle(tasks.find(t => t.id === currentManagingGroupId));
   if (task) {
-    // 同步更新所有同標題任務的單字庫
-    tasks.filter(t => t.title === task.title).forEach(t => {
-      if (!t.words) t.words = [];
-      t.words.push(val);
-      if (!t.unlearnedWords) t.unlearnedWords = [];
-      t.unlearnedWords.push(val);
-    });
+    task.words.push(val);
+    task.push.unlearnedWords.push(val);
     saveAndRefresh();
     renderVocabWordsList();
     input.value = '';
@@ -1110,11 +1102,9 @@ function addSingleVocab() {
 
 // 刪除單個單字
 function deleteSingleVocab(index) {
-  const task = tasks.find(t => t.id === currentManagingGroupId);
+  const task = getStage1TaskByTitle(tasks.find(t => t.id === currentManagingGroupId));
   if (task) {
-    tasks.filter(t => t.title === task.title).forEach(t => {
-      t.words.splice(index, 1);
-    });
+    task.words.splice(index, 1);
     saveAndRefresh();
     renderVocabWordsList();
   }
@@ -1123,11 +1113,9 @@ function deleteSingleVocab(index) {
 // 修改該單字庫字體
 function changeVocabGroupFont() {
   const font = document.getElementById('vocab-font-select').value;
-  const task = tasks.find(t => t.id === currentManagingGroupId);
+  const task = getStage1TaskByTitle(tasks.find(t => t.id === currentManagingGroupId));
   if (task) {
-    tasks.filter(t => t.title === task.title).forEach(t => {
-      t.vocabFont = font;
-    });
+    task.vocabFont=font;
     saveAndRefresh();
     renderVocabWordsList();
   }
