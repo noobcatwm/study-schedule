@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.1.2";
+const APP_VERSION = "v1.1.3";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
@@ -19,6 +19,27 @@ let capacities = JSON.parse(localStorage.getItem(DB_CAPS) || '[5,5,5,5,5,5,5]');
 let recentColors = JSON.parse(localStorage.getItem(DB_COLORS) || '["#0a84ff", "#ff9f0a", "#bf5af2"]');
 let selectedDateStr = "";
 
+function ensureUpgradedWords(wordsInput) {
+  if (!Array.isArray(wordsInput)) return [];
+  
+  return wordsInput.map(item => {
+    // 如果本來就是物件且有 word 屬性，直接保留
+    if (typeof item === 'object' && item !== null) {
+      return {
+        word: item.word || '',
+        meaning: item.meaning || '',
+        reading: item.reading || ''
+      };
+    } else {
+      // 如果是舊版的純字串，自動升級成新版物件（意思、讀音留空）
+      return {
+        word: String(item),
+        meaning: '',
+        reading: ''
+      };
+    }
+  });
+}
 function formatDate(dateObj) {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -341,6 +362,37 @@ function saveNewTask() {
     openDayModal(selectedDateStr);
 }
 
+function addVocabRow(word = '', meaning = '', reading = '', extra = '') {
+  const container = document.getElementById('vocab-rows-container') || document.getElementById('vocab-words-list');
+  if (!container) {
+    console.error("❌ 找不到單字列表容器！");
+    return;
+  }
+
+  const row = document.createElement('div');
+  row.className = 'vocab-row';
+  row.style.cssText = 'display: flex; gap: 6px; align-items: center; margin-bottom: 6px; width: 100%;';
+
+  // 1. 建立外觀結構（不帶硬性 value 字串，避免屬性同步問題）
+  row.innerHTML = `
+    <input type="text" class="input-word" placeholder="單字" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #666; background: #2a2a2a; color: #ffffff; font-size: 14px;">
+    <input type="text" class="input-meaning" placeholder="意思" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #666; background: #2a2a2a; color: #ffffff; font-size: 14px;">
+    <input type="text" class="input-reading" placeholder="讀音/補充" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #666; background: #2a2a2a; color: #ffffff; font-size: 14px;">
+    <button type="button" onclick="this.parentElement.remove()" style="width: 36px; height: 36px; background: #ff4d4f; color: white; border: none; border-radius: 6px; cursor: pointer; flex-shrink: 0; font-weight: bold;">✕</button>
+  `;
+
+  // 2. 直接透過 JS 指定 DOM 數值（雙保險，絕對寫入）
+  const inputWord = row.querySelector('.input-word');
+  const inputMeaning = row.querySelector('.input-meaning');
+  const inputReading = row.querySelector('.input-reading');
+
+  if (inputWord) inputWord.value = word || '';
+  if (inputMeaning) inputMeaning.value = meaning || '';
+  if (inputReading) inputReading.value = reading || '';
+
+  container.appendChild(row);
+}
+
 function openToolsModal() {
     const today = new Date();
     document.getElementById('clear-month-input').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
@@ -638,13 +690,6 @@ let currentWorkingTask = null; // 當前操作的任務
 let activeVocabSession = { words: [], unlearnedNext: [], currentIndex: 0, fontType: 'default', taskId: null };
 let currentManagingGroupId = null; // 進階設定目前管理的單字組
 
-// 1. 在任務資料結構中，新增欄位：
-// task.isVocab = true/false
-// task.vocabFont = 'default' | 'jp'
-// task.words = ['apple', 'banana']  (單字總庫)
-// task.unlearnedWords = ['apple']   (待複習單字)
-// task.vocabState = 'need_input' | 'ready' | 'reviewing'
-
 // 2. 渲染任務列表中按鈕的判定 logic (替換原本 Modal 內的任務渲染)
 function renderTaskButtons(task) {
     // 如果開啟了輔助記憶
@@ -732,109 +777,267 @@ function viewVocabWords(taskId) {
   }
 }
 
+function addVocabRow(word = '', meaning = '', reading = '', extra = '') {
+  const container = document.getElementById('vocab-rows-container');
+  if (!container) return;
+
+  const row = document.createElement('div');
+  row.className = 'vocab-row';
+  row.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-bottom: 6px;';
+
+  row.innerHTML = `
+    <input type="text" class="input-word" placeholder="單字" value="${word}" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+    <input type="text" class="input-meaning" placeholder="意思" value="${meaning}" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+    <input type="text" class="input-reading" placeholder="讀音" value="${reading}" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+    <button type="button" onclick="this.parentElement.remove()" style="width: 38px; height: 38px; background: #ff4d4f; color: white; border: none; border-radius: 6px; cursor: pointer; flex-shrink: 0;">✕</button>
+  `;
+  container.appendChild(row);
+}
+
 // 3. 打開「輸入單字」視窗
 function openVocabInput(taskId) {
-  currentWorkingTask = tasks.find(t => t.id === taskId);
-  document.getElementById('vocab-input-text').value = (currentWorkingTask.words || []).join('\n');
+  const currentTask = tasks.find(t => t.id === taskId);
+  if (!currentTask) return;
 
+  // 🌟 1. 嚴格遵守 v1.1.2 架構：透過 title 找到該單元真正的「第一階段 (Stage 1)」來讀取單字
+  const stage1Task = tasks.find(t => t.title === currentTask.title && t.stage === 1);
+  const targetTask = stage1Task || currentTask; // 如果找不到 stage 1 就退回用自己
+
+  // 記錄目前正在編輯的任務 ID（或是記錄 targetTask 的 ID，看你後續儲存怎麼寫）
+  currentWorkingTask = targetTask; 
+
+  // 2. 處理字體選單與樣式（保留你原本的邏輯）
   const fontSelect = document.getElementById('vocab-font-type');
-  const inputArea = document.getElementById('vocab-input-text');
-
-  // 還原選單的值
   if (fontSelect) {
-    fontSelect.value = currentWorkingTask.vocabFont || 'default';
+    fontSelect.value = targetTask.vocabFont || 'default';
   }
 
-  // 🌟 根據該任務的 vocabFont 決定要不要加上 class
-  if (inputArea) {
-    if (currentWorkingTask.vocabFont === 'jp' || currentWorkingTask.vocabFont === 'japanese') {
-      inputArea.classList.add('font-jp');
+  // 3. 清空並渲染動態清單表格
+  const container = document.getElementById('vocab-rows-container');
+  if (container) {
+    container.innerHTML = ''; // 清空舊的行
+
+    const wordsData = targetTask.words || [];
+
+    if (wordsData.length > 0) {
+      wordsData.forEach(item => {
+        // 相容舊資料：如果原本是純字串，就把它填進第一欄（單字）
+        if (typeof item === 'string') {
+          addVocabRow(item, '', '', '');
+        } else {
+          // 如果已經是物件格式，把各欄位填進去
+          addVocabRow(
+            item.word || '', 
+            item.meaning || '', 
+            item.reading || '', 
+            item.extra || ''
+          );
+        }
+      });
     } else {
-      inputArea.classList.remove('font-jp');
+      // 如果完全沒有單字，預設先給一行空白的讓使用者輸入
+      addVocabRow();
     }
   }
 
+  // 4. 開啟 Modal
   openModal('vocab-input-modal');
 }
 
 // 4. 儲存輸入的單字
 function saveVocabInput() {
-  const text = document.getElementById('vocab-input-text').value;
-  const list = text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-  
+  // 1. 收集動態表格內所有行的資料
+  const rows = document.querySelectorAll('#vocab-input-rows-container .vocab-row');
+  const newWords = [];
+
+  rows.forEach(row => {
+    const word = row.querySelector('.input-word')?.value.trim() || '';
+    const meaning = row.querySelector('.input-meaning')?.value.trim() || '';
+    const reading = row.querySelector('.input-reading')?.value.trim() || '';
+    const extra = row.querySelector('.input-extra')?.value.trim() || '';
+
+    // 只要任一欄位有填寫，就保留這筆單字資料
+    if (word || meaning || reading || extra) {
+      newWords.push({
+        word: word,
+        meaning: meaning,
+        reading: reading,
+        extra: extra
+      });
+    }
+  });
+
+  // 2. 寫回資料並遵守 v1.1.2 架構
   if (currentWorkingTask) {
-    const baseTask = getStage1TaskByTitle(currentWorkingTask)
-    baseTask.words = list;
-    baseTask.unlearnedWords = [...list]; // 初次預設全為待複習
-    baseTask.vocabState = 'ready'; // 狀態轉為可開始
+    const targetTitle = currentWorkingTask.title;
+
+    // 找出同標題的所有任務，只有 stage 1 存入完整單字，其他階段清空
+    tasks.forEach(t => {
+      if (t.title === targetTitle) {
+        if (t.stage === 1) {
+          t.words = [...newWords];
+          t.unlearnedWords = [...newWords]; // 初次預設全為待複習
+          t.vocabState = 'ready'; // 狀態轉為可開始
+        } else {
+          t.words = [];
+          t.unlearnedWords = [];
+        }
+      }
+    });
+
     saveAndRefresh();
   }
-  closeModal('vocab-input-modal');
-  // 重新打開當天詳細視窗以刷新按鈕狀態
-  openDayModal(selectedDateStr);
-}
 
+  closeModal('vocab-input-modal');
+  
+  // 重新打開當天詳細視窗以刷新按鈕狀態
+  if (typeof selectedDateStr !== 'undefined' && selectedDateStr) {
+    openDayModal(selectedDateStr);
+  }
+}
 // 5. 開始「刷單字」（熟 / 不熟 UI）
 function startVocabSession(taskId) {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
 
-  const baseTask = getStage1TaskByTitle(task)
+  // 🌟 嚴格遵守 v1.1.2：從第一階段拿單字
+  const stage1Task = getStage1TaskByTitle(task);
+  const wordsList = stage1Task.words || [];
 
-  // 判定測驗清單：如果本身是待複習卡片，只載入不熟單字(unlearnedWords)；否則載入全部單字(words)
-  let targetWords = [];
-  if (task.type === 'vocab_review') {
-    targetWords = task.unlearnedWords && task.unlearnedWords.length > 0 ? task.unlearnedWords : baseTask.words;
-  } else {
-    targetWords = baseTask.words || [];
-  }
-
-  if (!targetWords || targetWords.length === 0) {
-    alert('目前沒有需要測驗的單字！');
+  if (wordsList.length === 0) {
+    console.log(stage1Task);
+    alert('這個單元還沒有單字喔！請先輸入單字。');
     return;
   }
 
+  // 初始化複習階段物件，確保 unlearnedWords 絕對有值
   activeVocabSession = {
-    taskId: taskId,
-    words: [...targetWords], // 載入對應範圍的單字
-    fontType: task.vocabFont || 'default',
+    taskId: task.id,
+    words: wordsList,
+    unlearnedWords: [...wordsList],
+    unlearnedNext: [],
     currentIndex: 0,
-    unlearnedNext: []
+    fontType: stage1Task.vocabFont || 'default'
   };
 
+  // 打開背單字卡片 Modal (請依你專案中實際的 modal id 調整)
+  openModal('vocab-flashcard-modal'); 
   showNextWord();
-  openModal('vocab-flashcard-modal');
 }
 
+function getCustomFontClass(fontType) {
+  if (fontType === 'jp' || fontType === 'japanese') {
+    return 'font-jp'; // 🌟 對應你 CSS 裡原本就有的 .font-jp
+  }
+  return 'font-jp';
+}
+
+// ==========================================
+// 1. 核心：完美淡入淡出的 showNextWord
+// ==========================================
+// ==========================================
+// 點「熟了」或「不熟」切換到下一張（瞬間切換到正面，保留平時點擊的 3D 動畫）
+// ==========================================
 function showNextWord() {
   const session = activeVocabSession;
-  if (session.currentIndex >= session.words.length) {
+  if (!session) return;
+
+  // 🛡️ 防呆：如果 unlearnedWords 未定義，自動用 words 補上
+  if (!session.unlearnedWords) {
+    session.unlearnedWords = session.words || [];
+  }
+
+  // 索引推進到下一張
+  session.currentIndex++;
+
+  if (session.currentIndex >= session.unlearnedWords.length) {
     // 全部刷完！
     finishVocabSession();
     return;
   }
 
-  const word = session.words[session.currentIndex];
-  const displayEl = document.getElementById('flashcard-word-display');
-  displayEl.innerText = word;
-  
-  // 切換日文/預設字體
-  if (session.fontType === 'jp' || session.fontType === 'japanese') {
-    displayEl.classList.add('font-jp');
-  } else {
-    displayEl.classList.remove('font-jp');
+  const cardContainer = document.getElementById('main-flashcard');
+
+  if (cardContainer) {
+    // 🌟 1. 瞬間切換技巧：先把動畫 transition 關掉，強制移除翻面狀態回到正面
+    cardContainer.style.transition = 'none';
+    cardContainer.classList.remove('is-flipped');
+
+    // 🌟 2. 強制讓瀏覽器重繪 (Force Reflow)，確保拔掉動畫的狀態瞬間生效
+    void cardContainer.offsetWidth;
+
+    // 🌟 3. 恢復你原本點擊卡片時需要的 3D 翻面動畫 transition（通常是 transform 0.6s 左右，依你 CSS 為主）
+    cardContainer.style.transition = ''; 
   }
 
-  document.getElementById('vocab-progress').innerText = `${session.currentIndex + 1} / ${session.words.length}`;
+  // 4. 更新下一張卡的內容與字體
+  updateCardDOMContent();
+
+  // 5. 更新進度顯示
+  const progressEl = document.getElementById('vocab-progress');
+  if (progressEl) {
+    progressEl.innerText = `${session.currentIndex + 1} / ${session.unlearnedWords.length}`;
+  }
+}
+// ==========================================
+// 2. 更新卡片 DOM 內容
+// ==========================================
+function updateCardDOMContent() {
+  const session = activeVocabSession;
+  if (!session) return;
+  if (session.currentIndex >= session.unlearnedWords.length) return;
+
+  const currentItem = session.unlearnedWords[session.currentIndex];
+  
+  const wordText = typeof currentItem === 'object' ? (currentItem.word || '') : currentItem;
+  const meaningText = typeof currentItem === 'object' ? (currentItem.meaning || '（無填寫意思）') : '';
+  const readingText = typeof currentItem === 'object' ? (currentItem.reading || '') : '';
+
+  const fontType = session.fontType || 'jp';
+  const customFontClass = getCustomFontClass(fontType);
+
+  const wordEl = document.getElementById('card-word-text');
+  const meaningEl = document.getElementById('card-meaning-text');
+  const readingEl = document.getElementById('card-reading-text');
+
+  // 1. 正面單字
+  if (wordEl) {
+    wordEl.innerText = wordText;
+    wordEl.className = `flashcard-word ${customFontClass}`;
+  }
+
+  // 2. 背面意思
+  if (meaningEl) {
+    meaningEl.className = 'font-serif-main';
+    meaningEl.innerHTML = parseMixedFontText(meaningText, fontType);
+  }
+
+  // 3. 背面讀音/補充
+  if (readingEl) {
+    readingEl.className = 'font-serif-main';
+    const formattedReading = readingText ? `讀音/補充: ${readingText}` : '';
+    readingEl.innerHTML = parseMixedFontText(formattedReading, fontType);
+  }
+  
+  // 容器字體切換
+  const cardContainer = document.getElementById('main-flashcard');
+  if (cardContainer) {
+    if (fontType === 'jp' || fontType === 'japanese') {
+      cardContainer.classList.add('font-jp');
+    } else {
+      cardContainer.classList.remove('font-jp');
+    }
+  }
 }
 
 // 按下「熟」或「不熟」
 function answerVocab(isKnown) {
   const session = activeVocabSession;
-  const currentWord = session.words[session.currentIndex];
+  // 🌟 修正為從當前正在刷的 unlearnedWords 陣列中抓取
+  const currentWord = session.unlearnedWords[session.currentIndex];
 
   if (!isKnown) {
-    session.unlearnedNext.push(currentWord); // 標記為不熟，下次繼續複習
+    session.unlearnedNext.push(currentWord); // 標記為不熟
   }
 
   session.currentIndex++;
@@ -843,12 +1046,23 @@ function answerVocab(isKnown) {
 
 // 刷完單字結算：當場 push 一個全新的「待複習單字」 Task 到任務陣列中
 function finishVocabSession() {
+  console.log("📍 當前 activeVocabSession:", activeVocabSession);
+  console.log("📍 當前 taskId:", activeVocabSession ? activeVocabSession.taskId : "無");
+
   closeModal('vocab-flashcard-modal');
-  const currentTask = tasks.find(t => t.id === activeVocabSession.taskId);
   
+  if (!activeVocabSession || !activeVocabSession.taskId) {
+    console.error("❌ 錯誤：session 裡面沒有 taskId，所以無法更新任務狀態！");
+    return;
+  }
+
+  const currentTask = tasks.find(t => t.id === activeVocabSession.taskId);
+  console.log("📍 找到的對應任務:", currentTask);
+
   if (currentTask) {
     currentTask.unlearnedWords = activeVocabSession.unlearnedNext;
     currentTask.isCompleted = true; // 原任務標記完成
+    console.log("✅ 已將任務設定為完成：", currentTask.title);
 
     // 🌟 如果當前已經是「待複習單字」任務，做完直接結束，不重複生成
     if (currentTask.type === 'vocab_review') {
@@ -862,7 +1076,7 @@ function finishVocabSession() {
       const baseTitle = currentTask.groupName || currentTask.title.replace(/^待複習單字\s*\((.*)\)$/, '$1');
 
       const unitName = currentTask.groupName || '單字組';
-      const newReviewTask = {   
+      const newReviewTask = {    
         id: crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString() + Math.random().toString()),
         groupId: currentTask.groupId,
         groupName: baseTitle,
@@ -875,7 +1089,10 @@ function finishVocabSession() {
         // 🌟 核心：待複習任務的 words 裡面「只有不熟的單字」
         words: [...activeVocabSession.unlearnedNext],
         unlearnedWords: [...activeVocabSession.unlearnedNext],
-        vocabFont: currentTask.vocabFont || 'default',
+        
+        // 🌟 確保字體設定正確繼承（兼容 vocabFont 或 fontType）
+        fontType: currentTask.fontType || currentTask.vocabFont || 'jp',
+        vocabFont: currentTask.vocabFont || currentTask.fontType || 'jp',
         vocabState: 'ready',
         
         weight: 0,
@@ -1037,15 +1254,209 @@ function deleteSingleUnit(unitTitle) {
 // -------------------------------------------------------------
 // 【第三層】：檢視與編輯具體 Unit 內的單字 (即原本的 openVocabGroupDetail)
 // -------------------------------------------------------------
+// 打開詳細單字編輯視窗 (對應 v1.1.2：自動抓取 Stage 1)
+function openVocabDetail(taskId) {
+  const currentTask = tasks.find(t => t.id === taskId);
+  if (!currentTask) return;
+
+  // 🌟 嚴格遵守 v1.1.2：透過 title 找到該單元的第一階段任務
+  const stage1Task = tasks.find(t => t.title === currentTask.title && t.stage === 1);
+  const targetTask = stage1Task || currentTask;
+
+  // 暫存目前正在編輯的目標任務
+  currentWorkingTask = targetTask;
+
+  // 設定標題與字體選單
+  document.getElementById('vocab-detail-title').innerText = `編輯單字：${targetTask.title}`;
+  const fontSelect = document.getElementById('vocab-font-select');
+  if (fontSelect) {
+    fontSelect.value = targetTask.vocabFont || 'default';
+  }
+
+  // 渲染動態表格列
+  const container = document.getElementById('vocab-rows-container');
+  if (container) {
+    container.innerHTML = '';
+    const wordsData = targetTask.words || [];
+
+    if (wordsData.length > 0) {
+      wordsData.forEach(item => {
+        if (typeof item === 'string') {
+          addVocabRow(item, '', '');
+        } else {
+          addVocabRow(item.word || '', item.meaning || '', item.reading || '');
+        }
+      });
+    } else {
+      addVocabRow(); // 預設給一行空白
+    }
+  }
+
+  openModal('vocab-detail-modal');
+}
+
+// 動態新增一列輸入框
+function addVocabRow(word = '', meaning = '', reading = '') {
+  // 🌟 智慧尋找容器：優先找目前畫面上正開著的 modal 裡面的容器
+  let container = null;
+
+  // 1. 先嘗試找新版的編輯容器
+  const detailContainer = document.getElementById('vocab-rows-container');
+  // 2. 嘗試找舊版的輸入容器（如果你保留了它並改了 ID）
+  const inputContainer = document.getElementById('vocab-input-rows-container');
+
+  // 檢查哪個容器有在 DOM 中且所處的 modal 是顯示狀態，或者直接採用有抓到的那一個
+  if (detailContainer && detailContainer.offsetParent !== null) {
+    container = detailContainer;
+  } else if (inputContainer && inputContainer.offsetParent !== null) {
+    container = inputContainer;
+  } else {
+    // 預設就抓任何一個找得到的
+    container = detailContainer || inputContainer;
+  }
+
+  if (!container) {
+    console.warn("找不到任何可用的單字行容器！");
+    return;
+  }
+
+  const row = document.createElement('div');
+  row.className = 'vocab-row';
+  row.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+
+  row.innerHTML = `
+    <input type="text" class="input-word" placeholder="單字" value="${word}" style="flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+    <input type="text" class="input-meaning" placeholder="意思" value="${meaning}" style="flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+    <input type="text" class="input-reading" placeholder="讀音/補充" value="${reading}" style="flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+    <button type="button" onclick="this.parentElement.remove()" style="width: 34px; height: 32px; background: #ff4d4f; color: white; border: none; border-radius: 6px; cursor: pointer; flex-shrink: 0;">✕</button>
+  `;
+  
+  container.appendChild(row);
+}
+
+// 儲存詳細編輯視窗內的變更（嚴格遵守 Stage 1 集中儲存、其他階段清空）
+function saveVocabDetailModal() {
+  if (!currentWorkingTask) {
+    console.error("❌ 存檔失敗：currentWorkingTask 未定義！");
+    alert("找不到當前編輯的任務，請重新點擊編輯。");
+    return;
+  }
+  
+  const targetTitle = currentWorkingTask.title;
+
+  // 🌟 兼容新舊容器 ID，確保兩邊都能抓到
+  let container = document.querySelector('#vocab-rows-container');
+  if (!container) {
+    container = document.querySelector('#vocab-input-rows-container');
+  }
+
+  if (!container) {
+    console.error("❌ 存檔失敗：找不到任何單字列容器（#vocab-rows-container 或 #vocab-input-rows-container）！");
+    return;
+  }
+
+  const rows = container.querySelectorAll('.vocab-row');
+  console.log(`🔍 找到 ${rows.length} 行單字準備存檔...`);
+
+  const newWords = [];
+
+  rows.forEach((row, index) => {
+    const word = row.querySelector('.input-word')?.value.trim() || '';
+    const meaning = row.querySelector('.input-meaning')?.value.trim() || '';
+    const reading = row.querySelector('.input-reading')?.value.trim() || '';
+
+    if (word || meaning || reading) {
+      newWords.push({ word, meaning, reading });
+    }
+  });
+
+  console.log("📦 成功打包的單字資料：", newWords);
+
+  // 同步更新所有同 title 任務：stage 1 存單字，其他 stage 清空
+  let updatedCount = 0;
+  tasks.forEach(t => {
+    if (t.title === targetTitle) {
+      if (t.stage === 1) {
+        t.words = [...newWords];
+        t.unlearnedWords = [...newWords];
+        t.vocabState = 'ready';
+      } else {
+        t.words = [];
+        t.unlearnedWords = [];
+      }
+      updatedCount++;
+    }
+  });
+
+  console.log(`✅ 已同步更新 ${updatedCount} 個相關任務`);
+
+  saveAndRefresh();
+  closeModal('vocab-detail-modal');
+  closeModal('vocab-input-modal'); // 順便把舊的也關起來（如果有開的話）
+}
+
 function openVocabGroupDetail(taskId) {
   closeModal('vocab-units-modal'); // 關閉第二層
   currentManagingGroupId = taskId;
   
-  const task = getStage1TaskByTitle(tasks.find(t => t.id === taskId));
-  document.getElementById('vocab-detail-title').innerText = task.unitName || task.title;
-  document.getElementById('vocab-font-select').value = task.vocabFont || 'default';
+  // 1. 尋找點擊的任務
+  const currentTask = tasks.find(t => t.id === taskId);
+  if (!currentTask) {
+    console.error("❌ 找不到對應的任務 ID:", taskId);
+    return;
+  }
+  
+  // 2. 強制鎖定該標題的 Stage 1
+  let stage1Task = tasks.find(t => t.title === currentTask.title && t.stage === 1);
+  
+  // 如果找不到 Stage 1，乾脆直接把當前任務當作 Stage 1 來救
+  if (!stage1Task) {
+    console.warn("⚠️ 找不到 Stage 1，強制將當前任務視為本體");
+    stage1Task = currentTask;
+  }
 
-  renderVocabWordsList();
+  currentWorkingTask = stage1Task; 
+
+  // 3. 設定標題與字體
+  const titleEl = document.getElementById('vocab-detail-title');
+  if (titleEl) {
+    titleEl.innerText = stage1Task.unitName || stage1Task.title || '單字列表';
+  }
+
+  const fontSelect = document.getElementById('vocab-font-select');
+  if (fontSelect) {
+    fontSelect.value = stage1Task.vocabFont || 'default';
+  }
+
+  // 4. 渲染多欄位動態表格
+  const container = document.getElementById('vocab-rows-container') || document.getElementById('vocab-words-list');
+  if (container) {
+    container.innerHTML = '';
+    
+    // 確保 words 存在
+    if (!stage1Task.words) {
+      stage1Task.words = [];
+    }
+
+    const wordsData = stage1Task.words;
+
+    if (wordsData.length > 0) {
+      wordsData.forEach(item => {
+        if (typeof item === 'string') {
+          addVocabRow(item, '', '');
+        } else {
+          addVocabRow(item.word || '', item.meaning || '', item.reading || '');
+        }
+      });
+    } else {
+      console.warn("⚠️ 這裡的 words 陣列是空的！自動幫你生成一行預設空白列");
+      // 🌟 貼心小幫手：如果真的沒單字，直接給一行範例，讓你確認畫面會不會動
+      addVocabRow("測試單字", "意思", "讀音");
+    }
+  } else {
+    console.error("❌ 找不到畫面上的容器 (#vocab-rows-container 或 #vocab-words-list)！");
+  }
+
   openModal('vocab-detail-modal');
 }
 
@@ -1056,32 +1467,61 @@ function openVocabManagerFromTools() {
 
 // 開啟單字庫內部清單
 function openVocabGroupDetail(taskId) {
+  closeModal('vocab-units-modal'); // 關閉第二層
   currentManagingGroupId = taskId;
-  const task = getStage1TaskByTitle(tasks.find(t => t.id === taskId));
   
-  document.getElementById('vocab-detail-title').innerText = task.title;
-  document.getElementById('vocab-font-select').value = task.vocabFont || 'default';
+  const currentTask = tasks.find(t => t.id === taskId);
+  if (!currentTask) return;
+  
+  // 🌟 嚴格遵守 v1.1.2：透過 title 抓取第一階段 (Stage 1) 的資料
+  const stage1Task = getStage1TaskByTitle(currentTask) || currentTask;
+  currentWorkingTask = stage1Task; 
 
-  renderVocabWordsList();
+  const titleEl = document.getElementById('vocab-detail-title');
+  if (titleEl) {
+    titleEl.innerText = stage1Task.unitName || stage1Task.title || '單字列表';
+  }
+
+  const fontSelect = document.getElementById('vocab-font-select');
+  if (fontSelect) {
+    fontSelect.value = stage1Task.vocabFont || 'default';
+  }
+
+  // 🌟 同樣使用雙保險容器 ID
+const container = document.getElementById('vocab-rows-container') || document.getElementById('vocab-words-list');
+  if (container) {
+    container.innerHTML = '';
+    const rawWords = stage1Task.words || [];
+
+    if (rawWords.length > 0) {
+      // 🌟 嚴格保持原結構：統一升級為新版物件格式並寫回 stage1Task.words
+      stage1Task.words = rawWords.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          return {
+            word: item.word || '',
+            meaning: item.meaning || '',
+            reading: item.reading || ''
+          };
+        } else {
+          return {
+            word: String(item),
+            meaning: '',
+            reading: ''
+          };
+        }
+      });
+
+      // 渲染畫面
+      stage1Task.words.forEach(item => {
+        addVocabRow(item.word, item.meaning, item.reading);
+      });
+    } else {
+      stage1Task.words = [];
+      addVocabRow(); // 沒單字就給一行空白
+    }
+  }
+
   openModal('vocab-detail-modal');
-}
-
-function renderVocabWordsList() {
-  const task = getStage1TaskByTitle(tasks.find(t => t.id === currentManagingGroupId));
-  const container = document.getElementById('vocab-words-list');
-  container.innerHTML = '';
-
-  const isJp = task.vocabFont === 'jp';
-
-  (task.words || []).forEach((word, index) => {
-    const row = document.createElement('div');
-    row.className = 'vocab-item-row';
-    row.innerHTML = `
-      <span class="${isJp ? 'font-jp' : ''}">${word}</span>
-      <button onclick="deleteSingleVocab(${index})" style="color:#ff3b30; border:none; background:none;">刪除</button>
-    `;
-    container.appendChild(row);
-  });
 }
 
 // 新增單個單字
@@ -1120,3 +1560,84 @@ function changeVocabGroupFont() {
     renderVocabWordsList();
   }
 }
+
+function toggleCardFlip(containerElement) {
+  const card = containerElement.querySelector('.flashcard');
+  if (card) {
+    card.classList.toggle('is-flipped');
+  }
+}
+
+function renderCurrentFlashcard() {
+  // 假設你的當前單字陣列是 currentFlashcardList，索引是 currentIndex
+  const currentItem = currentFlashcardList[currentIndex] || {};
+
+  // 1. 填入正面與背面資料
+  document.getElementById('card-word-text').textContent = currentItem.word || '';
+  document.getElementById('card-meaning-text').textContent = currentItem.meaning || '（無填寫意思）';
+  document.getElementById('card-reading-text').textContent = currentItem.reading || '';
+
+  // 2. 更新進度顯示
+  document.getElementById('vocab-progress').textContent = `${currentIndex + 1} / ${currentFlashcardList.length}`;
+
+  // 3. 確保切換卡片時，卡片會自動轉回「正面」
+  const card = document.getElementById('main-flashcard');
+  if (card) {
+    card.classList.remove('is-flipped');
+  }
+}
+
+function parseMixedFontText(rawText, fontType) {
+  if (!rawText) return '';
+
+  // 1. 基本的 HTML 轉義，確保安全
+  let escaped = escapeHtml(rawText);
+
+  // 2. 取得該計畫對應的自定義字體 Class
+  const fontClassName = getCustomFontClass(fontType);
+
+  // 3. 抓取被單個星號正確包夾的文字並套用字體
+  // 如果不小心多打星號（例如 *字**），正規表達式會安全匹配有效部分，其餘原樣保留，絕不報錯
+  let parsed = escaped.replace(/\*([^\*]+)\*/g, `<span class="${fontClassName}">$1</span>`);
+
+  return parsed;
+}
+
+// HTML 轉義防呆函數
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+(function autoLogAllFunctions() {
+  // 排除掉不需要記錄的內建屬性或特殊變數
+  const excludeList = [
+    'window', 'document', 'console', 'Math', 'JSON', 'Object', 'Array', 
+    'String', 'Number', 'Boolean', 'Date', 'RegExp', 'Error', 'setTimeout', 
+    'setInterval', 'clearTimeout', 'clearInterval', 'fetch', 'alert', 'confirm', 'prompt', 'formatDate'
+  ];
+
+  // 掃描 window 底下的所有屬性
+  for (let key in window) {
+    if (excludeList.includes(key)) continue;
+
+    try {
+      // 如果它是一個函數
+      if (typeof window[key] === 'function') {
+        const originalFunc = window[key];
+
+        // 重新覆寫該函數
+        window[key] = function(...args) {
+          console.log(`🟢 [Function Executed]: %c${key}`, 'color: #00ffcc; font-weight: bold;', args);
+          // 執行原本的函數並回傳結果
+          return originalFunc.apply(this, args);
+        };
+      }
+    } catch (e) {
+      // 略過某些無法存取的瀏覽器唯讀屬性
+    }
+  }
+  console.log("🛠️ 【全域函數自動追蹤器】已啟動！接下來點任何按鈕都會自動印出函數名稱。");
+})();
