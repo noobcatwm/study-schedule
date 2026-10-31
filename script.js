@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.1.3";
+const APP_VERSION = "v1.1.3a";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
@@ -946,9 +946,6 @@ function showNextWord() {
   if (!session.unlearnedWords) {
     session.unlearnedWords = session.words || [];
   }
-
-  // 索引推進到下一張
-  session.currentIndex++;
 
   if (session.currentIndex >= session.unlearnedWords.length) {
     // 全部刷完！
