@@ -328,6 +328,40 @@
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script src="js/config-state.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/vocab-manage.js"></script>
+  <script>
+    (function autoLogAllFunctions() {
+      // 排除掉不需要記錄的內建屬性或特殊變數
+      const excludeList = [
+          'window', 'document', 'console', 'Math', 'JSON', 'Object', 'Array', 
+          'String', 'Number', 'Boolean', 'Date', 'RegExp', 'Error', 'setTimeout', 
+          'setInterval', 'clearTimeout', 'clearInterval', 'fetch', 'alert', 'confirm', 'prompt', 'formatDate'
+      ];
+
+      // 掃描 window 底下的所有屬性
+      for (let key in window) {
+          if (excludeList.includes(key)) continue;
+
+          try {
+          // 如果它是一個函數
+          if (typeof window[key] === 'function') {
+              const originalFunc = window[key];
+
+              // 重新覆寫該函數
+              window[key] = function(...args) {
+              console.log(`🟢 [Function Executed]: %c${key}`, 'color: #00ffcc; font-weight: bold;', args);
+              // 執行原本的函數並回傳結果
+              return originalFunc.apply(this, args);
+              };
+          }
+          } catch (e) {
+          // 略過某些無法存取的瀏覽器唯讀屬性
+          }
+      }
+      console.log("🛠️ 【全域函數自動追蹤器】已啟動！接下來點任何按鈕都會自動印出函數名稱。");
+    })();
+  </script>
 </body>
 </html>
