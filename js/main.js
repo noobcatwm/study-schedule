@@ -1,5 +1,4 @@
-tasks = JSON.parse(localStorage.getItem(DB_TASKS) || '[]');
-vocabBanks = JSON.parse(localStorage.getItem(DB_VOCAB_BANKS) || '[]');
+// tasks / vocabBanks 已由 config-state.js 載入，這裡只載入其餘設定
 capacities = JSON.parse(localStorage.getItem(DB_CAPS) || '[5,5,5,5,5,5,5]');
 recentColors = JSON.parse(localStorage.getItem(DB_COLORS) || '["#0a84ff", "#ff9f0a", "#bf5af2"]');
 let selectedDateStr = "";
@@ -11,7 +10,7 @@ let currentWorkingBankId = null;
 let reviewTask = null;
 
 function doubleFind(arg1, arg2 = null) {
-    const vocabGroups = JSON.parse(localStorage.getItem('vocabBanks_V5') || '[]');
+    const vocabGroups = vocabBanks; // 一律使用全域記憶體資料，修改後呼叫 saveVocabBanks() 存檔
 
     // 🟢 狀況 1：如果只傳了一個參數（代表這是一個孤立的 bankId，用來相容舊 task）
     if (arg2 === null) {
@@ -68,6 +67,14 @@ function doublePush(vocabGroups, newUnit) {
     return vocabGroups;
 }
 
+function findUnitByName(unitName) {
+    for (const group of vocabBanks) {
+        const unit = (group.units || []).find(u => u.name === unitName);
+        if (unit) return unit;
+    }
+    return null;
+}
+
 function ensureUpgradedWords(wordsInput) {
   if (!Array.isArray(wordsInput)) return [];
   
@@ -88,6 +95,12 @@ function ensureUpgradedWords(wordsInput) {
       };
     }
   });
+}
+
+// 'YYYY-MM-DD' → 本地時區 00:00（new Date('YYYY-MM-DD') 會被當成 UTC，在部分時區差一天）
+function parseDateStr(str) {
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d);
 }
 
 function formatDate(dateObj) {
@@ -147,18 +160,18 @@ function updateExamCountdown() {
     }
     
     let nextExam = upcomingExams[0];
-    let examDate = new Date(nextExam.dueDate);
+    let examDate = parseDateStr(nextExam.dueDate);
     let today = new Date();
     today.setHours(0,0,0,0);
     
     let diffTime = examDate - today;
-    let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))-1;
+    let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
     
     banner.className = 'exam-countdown-banner';
     if (diffDays === 0) {
-    banner.innerHTML = `<span>[倒數] ${nextExam.title} 就在今天！</span><span>考試加油！</span>`;
+    banner.innerHTML = `<span>[倒數] ${escapeHtml(nextExam.title)} 就在今天！</span><span>考試加油！</span>`;
     } else {
-    banner.innerHTML = `<span>[倒數] ${nextExam.title}</span><span>還有 ${diffDays} 天 (${nextExam.dueDate})</span>`;
+    banner.innerHTML = `<span>[倒數] ${escapeHtml(nextExam.title)}</span><span>還有 ${diffDays} 天 (${nextExam.dueDate})</span>`;
     }
 }
 
@@ -284,7 +297,7 @@ function renderTaskList(dateStr) {
     <div class="task-item ${t.isCompleted ? 'completed' : ''}" style="border-left-color: ${colorStyle}"
             onmousedown="initDrag(event, '${t.id}')" ontouchstart="initDrag(event, '${t.id}')">
         <div class="task-info">
-        <div class="task-title">${t.title}</div>
+        <div class="task-title">${escapeHtml(t.title)}</div>
         <div class="task-meta">${badge} | 負荷: ${t.weight || 0}</div>
         </div>
         <div class="task-actions">
@@ -318,12 +331,14 @@ function getDailyLoad(dateStr, pendingTasks = []) {
 
 function findAvailableDate(targetDateObj, weightToAdd, pendingTasks = []) {
     let curr = new Date(targetDateObj);
-    while (true) {
-    let dateStr = formatDate(curr);
-    let maxCap = capacities[curr.getDay()];
-    if (getDailyLoad(dateStr, pendingTasks) + weightToAdd <= maxCap) return dateStr;
-    curr.setDate(curr.getDate() + 1);
+    // 最多往後找 2 年；若負荷設定讓任何一天都放不下，就退回原本的目標日
+    for (let i = 0; i < 730; i++) {
+        let dateStr = formatDate(curr);
+        let maxCap = capacities[curr.getDay()];
+        if (getDailyLoad(dateStr, pendingTasks) + weightToAdd <= maxCap) return dateStr;
+        curr.setDate(curr.getDate() + 1);
     }
+    return formatDate(targetDateObj);
 }
 
 function saveNewTask() {
@@ -343,7 +358,7 @@ function saveNewTask() {
     } 
     else if (type === 'exam') {
         const duration = parseInt(document.getElementById('exam-duration').value) || 1;
-        let currD = new Date(selectedDateStr);
+        let currD = parseDateStr(selectedDateStr);
         for(let i = 0; i < duration; i++) {
             tasks.push({
             id: Date.now().toString() + i, type: 'exam', 
@@ -359,14 +374,12 @@ function saveNewTask() {
         const interval = parseInt(document.getElementById('task-interval').value) || 1;
         const enableVocab = document.getElementById('enable-vocab').checked || false;
         
-        let baseDate = new Date(selectedDateStr);
+        let baseDate = parseDateStr(selectedDateStr);
         let groupId = "G_" + Date.now().toString();
         let newTasks = [];
         let maxDate = new Date(baseDate);
         
-        // 準備讀取現有的 vocabBanks（如果有點選啟用單字的話）
-        let vocabBanks = enableVocab ? JSON.parse(localStorage.getItem('vocabBanks_V5') || '[]') : [];
-        let vocabBanksUpdated = false;
+        const createdUnitIds = []; // 本次新建的單元，使用者取消時要還原
 
         for (let u = startUnit; u < startUnit + units; u++) {
             let unitTitle = `${title} ${u}`; // 例如: "N3 核心單字 1"
@@ -374,7 +387,7 @@ function saveNewTask() {
             // 🌟 關鍵修正：每一個單元獨立處理自己的 vocabBank
             let vocabBankId = null;
             if (enableVocab) {
-                let existingBank = doubleFind(unitTitle);
+                let existingBank = findUnitByName(unitTitle);
                 
                 if (existingBank) {
                     vocabBankId = existingBank.id;
@@ -386,10 +399,10 @@ function saveNewTask() {
                         id: vocabBankId,
                         name: unitTitle, // 用精準的單元名稱命名
                         words: [],       // 初始空白單字
-                        fontType: document.getElementById('vocab-font-type')?.value || 'default'
+                        vocabFont: document.getElementById('vocab-font-type')?.value || 'default'
                     };
                     vocabBanks = doublePush(vocabBanks, newBank);
-                    vocabBanksUpdated = true;
+                    createdUnitIds.push(vocabBankId);
                 }
             }
 
@@ -397,7 +410,7 @@ function saveNewTask() {
             firstStudyDate.setDate(firstStudyDate.getDate() + (u - startUnit) * interval);
             
             let actualFirstDateStr = findAvailableDate(firstStudyDate, weight, newTasks);
-            let lastScheduledDateObj = new Date(actualFirstDateStr);
+            let lastScheduledDateObj = parseDateStr(actualFirstDateStr);
             let lastIntervalDays = 0;
             
             REVIEW_INTERVALS.forEach((intervalDays, stageIndex) => {
@@ -406,7 +419,7 @@ function saveNewTask() {
                 idealReviewDate.setDate(idealReviewDate.getDate() + daysToAdd);
                 
                 let scheduledReviewDateStr = findAvailableDate(idealReviewDate, weight, newTasks);
-                let scheduledDateObj = new Date(scheduledReviewDateStr);
+                let scheduledDateObj = parseDateStr(scheduledReviewDateStr);
                 if(scheduledDateObj > maxDate) maxDate = scheduledDateObj;
                 
                 // 🌟 每個階段的任務，都要綁定屬於該單元的 vocabBankId
@@ -431,19 +444,18 @@ function saveNewTask() {
             });
         }
         
-        // 如果有新增單字庫，統一寫回 localStorage
-        if (vocabBanksUpdated) {
-            localStorage.setItem('vocabBanks_V5', JSON.stringify(vocabBanks));
-        }
-
         let twelveMonthsLater = new Date();
         twelveMonthsLater.setMonth(twelveMonthsLater.getMonth() + 12);
         if (maxDate > twelveMonthsLater) {
             if (!confirm(`警告：因為負荷量考量，此系列排程最晚將跨越到 ${formatDate(maxDate)}，超過一年！確定要繼續嗎？`)) {
+                // 取消：把剛建立的空單字庫移除，避免留下孤兒資料
+                vocabBanks.forEach(g => { g.units = (g.units || []).filter(u => !createdUnitIds.includes(u.id)); });
+                vocabBanks = vocabBanks.filter(g => (g.units || []).length > 0);
                 return;
             }
         }
-        
+
+        if (createdUnitIds.length > 0) saveVocabBanks();
         tasks = tasks.concat(newTasks);
         // 記得儲存 tasks 與重新整理介面
         alert(`成功排入 ${units} 個單元！`);
@@ -478,7 +490,7 @@ function openToolsModal() {
         return `
             <div class="task-item" style="border-left-color: ${g.color}; flex-direction: column; align-items: flex-start; gap: 10px;">
             <div style="display:flex; justify-content:space-between; width:100%;">
-                <span style="font-weight:bold;">${g.name}</span>
+                <span style="font-weight:bold;">${escapeHtml(g.name)}</span>
                 <span style="font-size:0.8rem; color:var(--sub-text);">總進度: ${g.completed}/${g.total}</span>
             </div>
             <div style="display:flex; gap:10px; width:100%;">
@@ -498,7 +510,7 @@ function delayAllTasks() {
     const todayStr = formatDate(new Date());
     tasks.forEach(t => {
     if (t.type !== 'exam' && !t.isCompleted && t.dueDate >= todayStr) {
-        let d = new Date(t.dueDate);
+        let d = parseDateStr(t.dueDate);
         d.setDate(d.getDate() + 1);
         t.dueDate = formatDate(d);
     }
@@ -559,7 +571,7 @@ function exportData() {
         tasks: tasks,
         capacities: capacities,
         recentColors: recentColors,
-        vocabBanks_V5: JSON.parse(localStorage.getItem('vocabBanks_V5') || '[]'), // 直接打包整個雙層單字庫
+        vocabBanks_V5: vocabBanks, // 直接打包整個雙層單字庫
         theme: localStorage.getItem(DB_THEME) || 'dark'
     }; 
 
@@ -583,12 +595,13 @@ function importData(event) {
             if (data.tasks && Array.isArray(data.tasks)) { 
                 // 1. 還原行事曆與其他設定
                 tasks = data.tasks; 
-                if (data.capacities) capacities = data.capacities; 
-                if (data.recentColors) recentColors = data.recentColors; 
+                if (data.capacities) { capacities = data.capacities; localStorage.setItem(DB_CAPS, JSON.stringify(capacities)); } 
+                if (data.recentColors) { recentColors = data.recentColors; localStorage.setItem(DB_COLORS, JSON.stringify(recentColors)); } 
                 
                 // 2. 直接還原雙層單字庫 (如果備份檔裡有就直接覆蓋)
-                if (data.vocabBanks_V5) {
-                    localStorage.setItem('vocabBanks_V5', JSON.stringify(data.vocabBanks_V5));
+                if (Array.isArray(data.vocabBanks_V5)) {
+                    vocabBanks = data.vocabBanks_V5;
+                    saveVocabBanks();
                 }
 
                 // 3. 處理主題顏色 

@@ -4,6 +4,7 @@
     --text: #ffffff;
     --sub-text: #8e8e93;
     --primary: #0a84ff;
+    --accent: #0a84ff;
     --exam-red: #ff453a;
     --success-green: #32d74b;
     --warning-orange: #ff9f0a;
@@ -16,6 +17,7 @@ body.light-theme {
     --text: #000000;
     --sub-text: #3c3c43;
     --primary: #007aff;
+    --accent: #007aff;
     --exam-red: #ff3b30;
     --success-green: #34c759;
     --warning-orange: #ff9500;
@@ -139,7 +141,7 @@ input, button, select, textarea, select option {
 }
 
 .day-num { font-size: 0.9rem; font-weight: bold; margin-bottom: 4px; }
-.today .day-num { color: var(--prizmary); }
+.today .day-num { color: var(--primary); }
 
 .dots-container { display: flex; flex-wrap: wrap; gap: 2px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; }

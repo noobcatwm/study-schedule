@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.1.4";
+const APP_VERSION = "v1.1.5";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
@@ -45,6 +45,16 @@ function normalizeWords(wordsArray) {
       reading: item.reading || ''
     };
   });
+}
+
+// HTML 轉義（防止標題/單字含 < > & 或引號時破壞畫面）
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // vocabBanks V5
