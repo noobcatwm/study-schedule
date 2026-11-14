@@ -53,6 +53,7 @@
         <div><strong>間隔複習 (1-3-7-14-30)：</strong>根據「艾賓浩斯遺忘曲線」設計。當你新增此類任務時，系統會自動幫你在第 1、3、7、14、30 天安排複習任務，幫助你將短期記憶轉化為長期記憶，非常適合背單字。</div>
         <div><strong>拉動任務欄：</strong>任務欄可長按拖動至欲更改日期的位置。</div>
         <div><strong>輔助記憶單字：</strong>搭配單字書使用。第一階段輸入單字書內的單字，建議只挑選不會的，就能輕鬆複習。</div>
+        <div><strong>輸入單字：</strong>輸入視窗右上角可切換「直排檢視」（一個單字一行）與「橫排檢視」（單字、意思、讀音各一橫行）。讀音/補充欄可直接按 Enter 換行，刷單字時會照樣換行。</div>
         <div><strong>階段性任務與複習系統：</strong>背單字任務會自動切分為多個階段，完成當前階段後，系統會自動生成帶有原單元名稱的「待複習單字」任務，請翻開單字書再看看吧！</div>
       </div>
       
@@ -197,25 +198,28 @@
   <!-- Modal: 輸入單字 -->
   <div id="vocab-input-modal" class="modal-overlay">
   <div class="modal-content" style="max-width: 600px; width: 90%;">
-    <h3 id="vocab-input-title">輸入單字與詳細資訊</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px;">
+      <h3 id="vocab-input-title" style="margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">輸入單字與詳細資訊</h3>
+      <button class="action-btn" id="vocab-input-layout-btn" onclick="toggleVocabLayout()" style="flex-shrink: 0; white-space: nowrap;">切換為橫排檢視</button>
+    </div>
     <p style="font-size: 0.85rem; opacity: 0.7; margin-bottom: 10px;">
-      請輸入單字的各項欄位（第一欄預設為主單字，後續可自行新增意思、讀音、詞性等）：
+      請輸入單字的各項欄位（單字、意思、讀音/補充）。讀音/補充可直接按 Enter 換行，刷卡時會照樣換行：
     </p>
 
     <!-- 欄位標題行 -->
-    <div style="display: flex; gap: 8px; margin-bottom: 5px; font-weight: bold; font-size: 0.85rem; opacity: 0.8;">
+    <div id="vocab-input-header" style="display: flex; gap: 8px; margin-bottom: 5px; font-weight: bold; font-size: 0.85rem; opacity: 0.8;">
       <div style="flex: 1;">單字 (必填)</div>
       <div style="flex: 1;">意思</div>
       <div style="flex: 1;">讀音/其他</div>
       <div style="width: 40px;"></div>
     </div>
 
-    <div id="vocab-input-rows-container" style="max-height: 300px; overflow-y: auto; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;">
+    <div id="vocab-input-rows-container" style="max-height: 45vh; overflow-y: auto; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;">
       <!-- 這裡會由 JS 動態塞入行 -->
     </div>
 
     <!-- 新增一行的按鈕 -->
-    <button class="action-btn" onclick="addVocabRow('', '', '', 'vocab-input-rows-container')" style="width: 100%; margin-bottom: 15px; border: 1px dashed var(--border);">
+    <button class="action-btn" onclick="appendBlankVocabRow('vocab-input-rows-container')" style="width: 100%; margin-bottom: 15px; border: 1px dashed var(--border);">
       ＋ 新增一行單字
     </button>
 
@@ -297,16 +301,19 @@
   <div id="vocab-detail-modal" class="modal-overlay">
     <div class="modal-content" style="display: flex; flex-direction: column; max-height: 90vh; height: 90vh; max-width: 700px; width: 90%;">
       
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-        <h3 id="vocab-detail-title" style="margin: 0;">單字列表與編輯</h3>
-        <select id="vocab-font-select" onchange="changeVocabGroupFont()" style="padding:4px 8px; border-radius: 6px; background: var(--bg); color: var(--text); border: 1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+        <h3 id="vocab-detail-title" style="margin: 0; flex: 1 1 100%; min-width: 0;">單字列表與編輯</h3>
+        <div style="display: flex; gap: 6px; align-items: center; margin-left: auto;">
+          <button class="action-btn" id="vocab-detail-layout-btn" onclick="toggleVocabLayout()" style="white-space: nowrap;">切換為橫排檢視</button>
+          <select id="vocab-font-select" onchange="changeVocabGroupFont()" style="padding:4px 8px; border-radius: 6px; background: var(--bg); color: var(--text); border: 1px solid var(--border);">
           <option value="default">預設字體</option>
           <option value="jp">日本字體</option>
         </select>
+        </div>
       </div>
       
       <!-- 欄位標題提示 -->
-      <div style="display: flex; gap: 6px; font-size: 0.8rem; opacity: 0.7; padding: 0 4px; margin-bottom: 4px;">
+      <div id="vocab-detail-header" style="display: flex; gap: 6px; font-size: 0.8rem; opacity: 0.7; padding: 0 4px; margin-bottom: 4px;">
         <div style="flex: 1;">單字</div>
         <div style="flex: 1;">意思</div>
         <div style="flex: 1;">讀音/其他</div>
@@ -317,7 +324,7 @@
       <div id="vocab-rows-container" style="flex: 1; overflow-y: auto; margin: 5px 0 10px 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 8px; background: var(--bg);"></div>
       
       <!-- 底部操作按鈕：新增一行、儲存、返回 -->
-      <button class="action-btn" onclick="addVocabRow('', '', '', 'vocab-rows-container')" style="width: 100%; margin-bottom: 10px; border: 1px dashed var(--border); background: transparent; cursor: pointer;">
+      <button class="action-btn" onclick="appendBlankVocabRow('vocab-rows-container')" style="width: 100%; margin-bottom: 10px; border: 1px dashed var(--border); background: transparent; cursor: pointer;">
         ＋ 新增一行單字
       </button>
 

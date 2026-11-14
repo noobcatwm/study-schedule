@@ -28,6 +28,77 @@ function getVocabWordbankForTask(task) {
 }
 
 // ------------------------------------------
+// 單字列版面：直排檢視(row) / 橫排檢視(stack)
+//   直排：一個單字一行，單字 | 意思 | 讀音 並排
+//   橫排：一個單字三橫行，單字 / 意思 / 讀音(可換行) 上下排列
+// 版面只靠容器的 layout-stack class 切換，不重建資料列，所以切換不會遺失已輸入內容。
+// 偏好存在 localStorage，輸入視窗與編輯視窗共用。
+// ------------------------------------------
+const VOCAB_ROW_CONTAINERS = ['vocab-input-rows-container', 'vocab-rows-container'];
+
+// 直排欄位較窄，提示文字用短版，避免折成兩行把空白列撐高
+function readingPlaceholder() {
+    return getVocabLayout() === 'stack' ? '讀音/補充（可直接換行）' : '讀音/補充';
+}
+
+function getVocabLayout() {
+    return localStorage.getItem(DB_VOCAB_LAYOUT) === 'stack' ? 'stack' : 'row';
+}
+
+function applyVocabLayout() {
+    const isStack = getVocabLayout() === 'stack';
+
+    VOCAB_ROW_CONTAINERS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('layout-stack', isStack);
+    });
+
+    // 欄位標題行只在直排檢視需要（橫排時每個欄位有自己的 placeholder）
+    ['vocab-input-header', 'vocab-detail-header'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden', isStack);
+    });
+
+    // 按鈕文字顯示「按下後會切換成什麼」
+    ['vocab-input-layout-btn', 'vocab-detail-layout-btn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = isStack ? '切換為直排檢視' : '切換為橫排檢視';
+    });
+
+    document.querySelectorAll('.vocab-row .input-reading').forEach(ta => { ta.placeholder = readingPlaceholder(); });
+    refreshVocabTextareas(); // 版面改變後欄寬不同，重算讀音欄高度
+}
+
+function toggleVocabLayout() {
+    localStorage.setItem(DB_VOCAB_LAYOUT, getVocabLayout() === 'stack' ? 'row' : 'stack');
+    applyVocabLayout();
+}
+
+// ------------------------------------------
+// 讀音/補充：換行處理
+// ------------------------------------------
+function normalizeReadingText(text) {
+    return String(text ?? '')
+        .replace(/\r\n?/g, '\n')
+        .replace(/\\n/g, '\n'); // 舊資料若手打了字面上的 \n，一律視為換行
+}
+
+// 讀音欄是 textarea，依內容自動增高（最高 160px，超過改為捲動）
+function autoGrowTextarea(ta) {
+    if (!ta) return;
+    ta.style.height = 'auto';
+    const h = ta.scrollHeight;
+    if (!h) return; // 所在視窗目前是隱藏的，之後開啟時會再重算
+    const MAX = 160;
+    ta.style.height = Math.min(h + 2, MAX) + 'px'; // +2 = 上下邊框
+    ta.style.overflowY = (h + 2 > MAX) ? 'auto' : 'hidden';
+}
+
+function refreshVocabTextareas() {
+    document.querySelectorAll('.vocab-row .input-reading').forEach(autoGrowTextarea);
+}
+
+// ------------------------------------------
 // 動態單字列（輸入視窗與編輯視窗共用）
 // containerId 明確指定要放進哪個容器
 // ------------------------------------------
@@ -35,36 +106,56 @@ function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab
     const container = document.getElementById(containerId);
     if (!container) {
         console.warn('找不到單字列容器：', containerId);
-        return;
+        return null;
     }
 
     const row = document.createElement('div');
     row.className = 'vocab-row';
-    row.style.cssText = 'display: flex; gap: 6px; align-items: center;';
 
     // 用 DOM 屬性設定 value，單字含引號或 < > 時也不會破壞 HTML
-    [
-        ['input-word', '單字', word],
-        ['input-meaning', '意思', meaning],
-        ['input-reading', '讀音/補充', reading]
-    ].forEach(([cls, placeholder, value]) => {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = cls;
-        input.placeholder = placeholder;
-        input.value = value || '';
-        input.style.cssText = 'flex: 1; min-width: 0; padding: 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);';
-        row.appendChild(input);
-    });
+    const wordInput = document.createElement('input');
+    wordInput.type = 'text';
+    wordInput.className = 'vocab-field input-word';
+    wordInput.placeholder = '單字';
+    wordInput.value = word || '';
+
+    const meaningInput = document.createElement('input');
+    meaningInput.type = 'text';
+    meaningInput.className = 'vocab-field input-meaning';
+    meaningInput.placeholder = '意思';
+    meaningInput.value = meaning || '';
+
+    // 讀音/補充用 textarea：可直接按 Enter 換行，刷卡時會照樣換行
+    const readingInput = document.createElement('textarea');
+    readingInput.className = 'vocab-field input-reading';
+    readingInput.rows = 1;
+    readingInput.placeholder = readingPlaceholder();
+    readingInput.value = normalizeReadingText(reading);
+    readingInput.addEventListener('input', () => autoGrowTextarea(readingInput));
 
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
+    delBtn.className = 'vocab-del-btn';
     delBtn.textContent = '✕';
-    delBtn.style.cssText = 'width: 34px; height: 32px; background: #ff4d4f; color: white; border: none; border-radius: 6px; cursor: pointer; flex-shrink: 0;';
     delBtn.onclick = () => row.remove();
-    row.appendChild(delBtn);
 
+    row.appendChild(wordInput);
+    row.appendChild(meaningInput);
+    row.appendChild(readingInput);
+    row.appendChild(delBtn);
     container.appendChild(row);
+
+    autoGrowTextarea(readingInput);
+    return row;
+}
+
+// 「＋ 新增一行單字」按鈕：新增空白列、捲到可見處並聚焦單字欄
+function appendBlankVocabRow(containerId) {
+    const row = addVocabRow('', '', '', containerId);
+    if (!row) return;
+    row.scrollIntoView({ block: 'nearest' });
+    const first = row.querySelector('.input-word');
+    if (first) first.focus();
 }
 
 // 讀取容器內所有列 → [{word, meaning, reading}]（全空的列略過）
@@ -75,7 +166,9 @@ function collectVocabRows(containerId) {
     container.querySelectorAll('.vocab-row').forEach(row => {
         const word = row.querySelector('.input-word')?.value.trim() || '';
         const meaning = row.querySelector('.input-meaning')?.value.trim() || '';
-        const reading = row.querySelector('.input-reading')?.value.trim() || '';
+        const reading = normalizeReadingText(row.querySelector('.input-reading')?.value || '')
+            .replace(/[ \t]+\n/g, '\n') // 每行行尾空白去掉
+            .trim();                    // 頭尾空行去掉，中間換行保留
         if (word || meaning || reading) result.push({ word, meaning, reading });
     });
     return result;
@@ -108,6 +201,7 @@ function openVocabInput(taskId) {
 
     fillVocabRows('vocab-input-rows-container', getWordsForTask(task));
     openModal('vocab-input-modal');
+    applyVocabLayout();
 }
 
 function saveVocabInput() {
@@ -202,7 +296,7 @@ function updateCardDOMContent() {
     const item = session.unlearnedWords[session.currentIndex];
     const wordText = item.word || '';
     const meaningText = item.meaning || '（無填寫意思）';
-    const readingText = item.reading || '';
+    const readingText = normalizeReadingText(item.reading || '');
 
     const vocabFont = session.vocabFont || 'default';
 
@@ -338,6 +432,7 @@ function openVocabGroupDetail(taskId) {
 
     fillVocabRows('vocab-rows-container', getWordsForTask(task));
     openModal('vocab-detail-modal');
+    applyVocabLayout();
 }
 
 // ------------------------------------------
@@ -474,6 +569,7 @@ function openVocabBankDetail(unitId) {
 
     fillVocabRows('vocab-rows-container', bank.words);
     openModal('vocab-detail-modal');
+    applyVocabLayout();
 }
 
 function saveVocabDetailModal() {
@@ -516,3 +612,6 @@ function changeVocabGroupFont() {
     bank.vocabFont = font;
     saveVocabBanks();
 }
+
+// 載入時套用上次選擇的版面
+applyVocabLayout();

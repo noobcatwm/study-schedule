@@ -311,3 +311,87 @@ body {
   background: var(--accent, #0a84ff);
   color: #ffffff;
 }
+
+/* ==========================================
+   單字列（輸入 / 編輯視窗共用）
+   預設為「直排檢視」：一個單字一行，三欄並排
+   容器加上 .layout-stack 為「橫排檢視」：一個單字三橫行
+   ========================================== */
+.vocab-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+/* 用 .vocab-row .vocab-field（權重較高）蓋過全域 input[type="text"] 的 padding / width */
+.vocab-row .vocab-field {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 6px;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+.vocab-row textarea.vocab-field {
+  display: block;
+  resize: none;
+  overflow-y: hidden;
+}
+.vocab-row .vocab-del-btn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  background: #ff4d4f;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* 橫排檢視 */
+.layout-stack .vocab-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  position: relative;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-bg);
+}
+.layout-stack .vocab-row .vocab-field {
+  flex: none;
+  width: 100%;
+  padding: 8px;
+}
+.layout-stack .vocab-row .input-word {
+  padding-right: 50px; /* 留位置給右上角刪除鈕 */
+}
+.layout-stack .vocab-row textarea.input-reading {
+  min-height: 64px;
+}
+.layout-stack .vocab-row .vocab-del-btn {
+  position: absolute;
+  top: 14px;   /* 垂直置中於單字欄 */
+  right: 14px;
+  width: 30px;
+  height: 30px;
+}
+
+/* 刷單字卡片：讀音/補充中的換行照樣顯示 */
+#card-reading-text {
+  white-space: pre-line;
+  line-height: 1.5;
+}
+
+/* 卡片背面內容較多（例如讀音換了很多行）時可捲動；內容少時仍置中 */
+.flashcard-back {
+  justify-content: flex-start;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.flashcard-back > :first-child { margin-top: auto; }
+.flashcard-back > :last-child  { margin-bottom: auto; }
