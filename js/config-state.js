@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.1.5a";
+const APP_VERSION = "v1.2.0";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
@@ -27,25 +27,30 @@ let vocabBanks = [];
 let capacities = [];
 let recentColors = [];
 
+// 單字資料的標準格式：{ word: 字串, meanings: [字串, ...], reading: 字串 }
+// 相容舊格式：純字串、或單一 meaning 字串的物件
+function normalizeWordEntry(item) {
+  if (typeof item === 'string') {
+    return { word: item, meanings: [], reading: '' };
+  }
+  item = item || {};
+  let meanings = [];
+  if (Array.isArray(item.meanings)) {
+    meanings = item.meanings;
+  } else if (item.meaning) {
+    meanings = [item.meaning];
+  }
+  meanings = meanings.map(m => String(m ?? '').trim()).filter(m => m !== '');
+  return {
+    word: item.word || '',
+    meanings: meanings,
+    reading: item.reading || ''
+  };
+}
+
 function normalizeWords(wordsArray) {
   if (!Array.isArray(wordsArray)) return [];
-  
-  return wordsArray.map(item => {
-    // 如果舊資料只是純字串，轉成標準物件結構，意思與讀音留空
-    if (typeof item === 'string') {
-      return {
-        word: item,
-        meaning: '',
-        reading: ''
-      };
-    }
-    // 如果本來就是物件，確保三個欄位都存在
-    return {
-      word: item.word || '',
-      meaning: item.meaning || '',
-      reading: item.reading || ''
-    };
-  });
+  return wordsArray.map(item => normalizeWordEntry(item));
 }
 
 // HTML 轉義（防止標題/單字含 < > & 或引號時破壞畫面）
@@ -82,24 +87,24 @@ function loadAndMigrateData() {
     const savedTasksV5 = localStorage.getItem(DB_TASKS);
     const savedVocabBanksV5 = localStorage.getItem(DB_VOCAB_BANKS);
 
-    // 🟢 情況 A：已經存在 V5 最新格式
+    // 情況 A：已經存在 V5 最新格式
     if (savedTasksV5 && savedVocabBanksV5) {
         tasks = JSON.parse(savedTasksV5);
         vocabBanks = JSON.parse(savedVocabBanksV5); // 這裡的 vocabBanks 現在會是雙層 Group 陣列！
-        console.log('📂 [State] 成功載入 V5 雙層巢狀資料結構');
+        console.log('[State] 成功載入 V5 雙層巢狀資料結構');
         return;
     }
 
-    // 🟡 情況 B：找不到 V5，但發現舊版 V4 資料 ➔ 進行「雙層結構」升級遷移
+    // 情況 B：找不到 V5，但發現舊版 V4 資料 ➔ 進行「雙層結構」升級遷移
     const oldDataJson = localStorage.getItem(OLD_DB_TASKS_V4);
     if (oldDataJson) {
-        console.log('🔄 [State] 偵測到 V4 舊版，啟動雙層巢狀結構自動遷移...');
+        console.log('[State] 偵測到 V4 舊版，啟動雙層巢狀結構自動遷移...');
         const parsedData = JSON.parse(oldDataJson);
         const oldTasks = Array.isArray(parsedData.tasks) ? parsedData.tasks : [];
         
         tasks = [];
         
-        // 🌟 核心改變：用一個暫時的物件來把單字庫依 groupId 分群
+        // 核心改變：用一個暫時的物件來把單字庫依 groupId 分群
         const groupMap = {}; 
         let unitTotalCount = 0;
 
@@ -149,7 +154,7 @@ function loadAndMigrateData() {
             }
         });
 
-        // 🌟 把 groupMap 轉回陣列指定給 vocabBanks (此時 vocabBanks 就是 Group 陣列)
+        // 把 groupMap 轉回陣列指定給 vocabBanks (此時 vocabBanks 就是 Group 陣列)
         vocabBanks = Object.values(groupMap);
 
         // 儲存其他全域設定
@@ -159,17 +164,17 @@ function loadAndMigrateData() {
 
         // 寫入 V5
         saveAllData();
-        console.log(`✨ [State] V4 ➔ V5 雙層巢狀結構遷移與正規化完成！`);
-        console.log(`📋 任務總數: ${tasks.length}`);
-        console.log(`📁 總群組數: ${vocabBanks.length} 個大主題`);
-        console.log(`📚 獨立單元總數: ${unitTotalCount} 個單字庫單元`);
+        console.log(`[State] V4 ➔ V5 雙層巢狀結構遷移與正規化完成！`);
+        console.log(`任務總數: ${tasks.length}`);
+        console.log(`總群組數: ${vocabBanks.length} 個大主題`);
+        console.log(`獨立單元總數: ${unitTotalCount} 個單字庫單元`);
         return;
     }
 
-    // 🔵 情況 C：全新使用者
+    // 情況 C：全新使用者
     tasks = [];
     vocabBanks = []; // 全新環境下，這裡也會是空的 Group 陣列
-    console.log('✨ [State] 初始化全新乾淨環境 (V5 雙層結構)');
+    console.log('[State] 初始化全新乾淨環境 (V5 雙層結構)');
 }
 
 function saveAllData() {
@@ -179,6 +184,29 @@ function saveAllData() {
 
 // 啟動時執行
 loadAndMigrateData();
+
+// 把已儲存的單字（單字庫與待複習任務）統一升級為 meanings 陣列格式
+function migrateWordShapes() {
+  let changed = false;
+  const upgrade = (arr) => arr.map(w => {
+    const n = normalizeWordEntry(w);
+    if (JSON.stringify(n) !== JSON.stringify(w)) changed = true;
+    return n;
+  });
+
+  vocabBanks.forEach(group => {
+    (group.units || []).forEach(unit => {
+      if (Array.isArray(unit.words)) unit.words = upgrade(unit.words);
+    });
+  });
+  tasks.forEach(t => {
+    if (Array.isArray(t.unlearnedWords)) t.unlearnedWords = upgrade(t.unlearnedWords);
+  });
+
+  if (changed) saveAllData();
+  return changed;
+}
+migrateWordShapes();
 
 // 獨立儲存單字庫 (當在管理介面單獨修改單字內容時呼叫)
 function saveVocabBanks() {

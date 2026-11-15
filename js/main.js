@@ -12,7 +12,7 @@ let reviewTask = null;
 function doubleFind(arg1, arg2 = null) {
     const vocabGroups = vocabBanks; // 一律使用全域記憶體資料，修改後呼叫 saveVocabBanks() 存檔
 
-    // 🟢 狀況 1：如果只傳了一個參數（代表這是一個孤立的 bankId，用來相容舊 task）
+    // 狀況 1：如果只傳了一個參數（代表這是一個孤立的 bankId，用來相容舊 task）
     if (arg2 === null) {
         const targetBankId = arg1;
         for (const group of vocabGroups) {
@@ -24,7 +24,7 @@ function doubleFind(arg1, arg2 = null) {
         return null; // 找不到就回傳 null
     }
 
-    // 🟡 狀況 2：傳了兩個參數（標準的 groupId + unitId 雙層尋找）
+    // 狀況 2：傳了兩個參數（標準的 groupId + unitId 雙層尋找）
     const groupId = arg1;
     const unitId = arg2;
 
@@ -40,7 +40,7 @@ function doublePush(vocabGroups, newUnit) {
     // 確保有傳入 groupId
     const gId = newUnit.groupId;
     if (!gId) {
-        console.error("❌ doublePush 失敗：newUnit 缺少 groupId", newUnit);
+        console.error("doublePush 失敗：newUnit 缺少 groupId", newUnit);
         return vocabGroups; // 原封不動回傳
     }
 
@@ -77,24 +77,7 @@ function findUnitByName(unitName) {
 
 function ensureUpgradedWords(wordsInput) {
   if (!Array.isArray(wordsInput)) return [];
-  
-  return wordsInput.map(item => {
-    // 如果本來就是物件且有 word 屬性，直接保留
-    if (typeof item === 'object' && item !== null) {
-      return {
-        word: item.word || '',
-        meaning: item.meaning || '',
-        reading: item.reading || ''
-      };
-    } else {
-      // 如果是舊版的純字串，自動升級成新版物件（意思、讀音留空）
-      return {
-        word: String(item),
-        meaning: '',
-        reading: ''
-      };
-    }
-  });
+  return wordsInput.map(item => normalizeWordEntry(item));
 }
 
 // 'YYYY-MM-DD' → 本地時區 00:00（new Date('YYYY-MM-DD') 會被當成 UTC，在部分時區差一天）
@@ -384,7 +367,7 @@ function saveNewTask() {
         for (let u = startUnit; u < startUnit + units; u++) {
             let unitTitle = `${title} ${u}`; // 例如: "N3 核心單字 1"
             
-            // 🌟 關鍵修正：每一個單元獨立處理自己的 vocabBank
+            // 關鍵修正：每一個單元獨立處理自己的 vocabBank
             let vocabBankId = null;
             if (enableVocab) {
                 let existingBank = findUnitByName(unitTitle);
@@ -422,7 +405,7 @@ function saveNewTask() {
                 let scheduledDateObj = parseDateStr(scheduledReviewDateStr);
                 if(scheduledDateObj > maxDate) maxDate = scheduledDateObj;
                 
-                // 🌟 每個階段的任務，都要綁定屬於該單元的 vocabBankId
+                // 每個階段的任務，都要綁定屬於該單元的 vocabBankId
                 newTasks.push({
                     id: Date.now().toString() + Math.random().toString(),
                     groupId: groupId, 
@@ -494,7 +477,7 @@ function openToolsModal() {
                 <span style="font-size:0.8rem; color:var(--sub-text);">總進度: ${g.completed}/${g.total}</span>
             </div>
             <div style="display:flex; gap:10px; width:100%;">
-                <button class="action-btn" style="flex:1;" onclick="deletePeriodicGroup('${gId}')">刪除整個群組</button>
+                <button class="action-btn delete-btn" style="flex:1;" onclick="deletePeriodicGroup('${gId}')">刪除整個群組</button>
             </div>
             </div>
         `;
@@ -534,7 +517,10 @@ function clearSpecificMonth() {
 }
 
 function deletePeriodicGroup(groupId) {
-    if(!confirm("確定要刪除此週期計畫嗎？(所有與此相關的已排定、未排定任務都會移除)")) return;
+    // 刪除週期計畫只會移除行事曆上的任務，單字庫會保留
+    const hasVocab = tasks.some(t => t.groupId === groupId && t.vocabBankId);
+    const note = hasVocab ? "\n\n單字庫不會被刪除，如需刪除請到「進階工具 > 檢視所有單字庫」。" : "";
+    if(!confirm("確定要刪除此週期計畫嗎？(所有與此相關的已排定、未排定任務都會移除)" + note)) return;
     tasks = tasks.filter(t => t.groupId !== groupId);
     saveAndRefresh();
     openToolsModal();
@@ -603,6 +589,9 @@ function importData(event) {
                     vocabBanks = data.vocabBanks_V5;
                     saveVocabBanks();
                 }
+
+                // 舊版備份的單字欄位（meaning）升級為 meanings
+                migrateWordShapes();
 
                 // 3. 處理主題顏色 
                 if (data.theme) { 
@@ -771,47 +760,39 @@ function toggleVocabFontOption() {
 
 // 2. 渲染任務列表中按鈕的判定 logic (替換原本 Modal 內的任務渲染)
 function renderTaskButtons(task) {
-    // 如果開啟了輔助記憶
+    // 開啟輔助記憶（單字背誦）的任務
     if (task.enableVocab) {
-        // 第一階段
-        if (task.stage === 1) {
-        if (!task.vocabState || task.vocabState === 'need_input') {
+        // 第一階段且尚未輸入單字：只能先輸入單字
+        const needsInput = task.stage === 1 && (!task.vocabState || /^need[_-]input$/.test(task.vocabState));
+        if (needsInput) {
             return `
                 <button class="action-btn" onclick="openVocabInput('${task.id}')">輸入單字</button>
-                <button class="action-btn" onclick="deleteTask('${task.id}')">刪除</button>`;
-        } else {
-            return `
-                <button class="action-btn" onclick="startVocabSession('${task.id}')">開始</button>
-                <button class="action-btn" onclick="deleteTask('${task.id}')">刪除</button>`;
+                <button class="action-btn delete-btn" onclick="deleteTask('${task.id}')">刪除</button>`;
         }
-        } 
-        // 第二階段及以後（待複習單字）
-        else {
+        // 其餘情形（包含第一階段輸入完單字後）一律為：檢視 / 開始 / 刪除
         return `
             <button class="action-btn" onclick="viewVocabWords('${task.id}')">檢視</button>
             <button class="action-btn" onclick="startVocabSession('${task.id}')">開始</button>
-            <button class="action-btn" onclick="deleteTask('${task.id}')">刪除</button>
+            <button class="action-btn delete-btn" onclick="deleteTask('${task.id}')">刪除</button>
         `;
-        }
     }
 
     if (task.type === 'vocab_review') {
         const completeBtnText = task.isCompleted ? '已完成' : '完成';
         const completeBtnStyle = task.isCompleted ? 'opacity: 0.6;' : '';
-        
+
+        // 不另外包一層容器，讓按鈕直接排在 .task-actions 裡，間距與其他任務一致
         return `
-        <div style="display:flex; gap:6px; align-items:center;">
             <button class="action-btn" onclick="viewVocabWords('${task.id}')">檢視</button>
             <button class="action-btn" onclick="toggleTaskComplete('${task.id}')" style="${completeBtnStyle}">${completeBtnText}</button>
-            <button class="action-btn" onclick="deleteTask('${task.id}')" style="color:#ff3b30; border-color:rgba(255,59,48,0.3);">刪除</button>
-        </div>
+            <button class="action-btn delete-btn" onclick="deleteTask('${task.id}')">刪除</button>
         `;
     }
-  
+
     // 原本的任務按鈕渲染
     return `
         <button class="action-btn" onclick="toggleComplete('${task.id}')">${task.isCompleted ? '已完成' : '完成'}</button>
-        <button class="action-btn" onclick="deleteTask('${task.id}')">刪除</button>
+        <button class="action-btn delete-btn" onclick="deleteTask('${task.id}')">刪除</button>
         `;
 }
 

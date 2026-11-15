@@ -177,6 +177,8 @@ input, button, select, textarea, select option {
     padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; cursor: pointer;
 }
 .action-btn.complete-btn { background: var(--primary); color: white; }
+/* 所有「刪除」按鈕：紅色文字 */
+.action-btn.delete-btn { color: #ff3b30; }
 .task-item.completed .complete-btn { background: var(--border); color: var(--sub-text); }
 
 .form-group { margin-bottom: 15px; }
@@ -395,3 +397,154 @@ body {
 }
 .flashcard-back > :first-child { margin-top: auto; }
 .flashcard-back > :last-child  { margin-bottom: auto; }
+
+/* ==========================================
+   意思（可多個）
+   ========================================== */
+.vocab-meanings {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vocab-meaning-item {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.vocab-row .vocab-meaning-item .vocab-field {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+.vocab-meaning-del {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--sub-text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.vocab-meanings.single .vocab-meaning-del { display: none; } /* 只剩一個意思時不能刪 */
+.vocab-meaning-add {
+  padding: 4px 6px;
+  font-size: 0.85rem;
+  background: transparent;
+  color: var(--sub-text);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* 橫排檢視下的意思區 */
+.layout-stack .vocab-row .vocab-meanings { flex: none; width: 100%; }
+.layout-stack .vocab-row .vocab-meaning-item .vocab-field { flex: 1 1 auto; width: auto; padding: 8px; }
+.layout-stack .vocab-meaning-add { align-self: flex-start; padding: 4px 12px; }
+
+/* 刷單字卡片：多個意思分行顯示 */
+#card-meaning-text .meaning-line { margin: 2px 0; }
+#card-meaning-text .meaning-index { opacity: 0.7; }
+
+/* 意思欄加寬；刪除鈕改為疊在輸入框右側，節省寬度 */
+.vocab-row .vocab-meanings { flex: 1.4 1 0; }
+.vocab-meaning-item { position: relative; }
+.vocab-meaning-del {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  font-size: 0.8rem;
+  border: none;
+  background: transparent;
+}
+.vocab-row .vocab-meanings:not(.single) .vocab-meaning-item .input-meaning { padding-right: 28px; }
+
+/* ==========================================
+   選擇題模式
+   ========================================== */
+#quiz-reading-text {
+  white-space: pre-line;
+  line-height: 1.5;
+}
+#quiz-meaning-text .meaning-line { margin: 2px 0; }
+#quiz-meaning-text .meaning-index { opacity: 0.7; }
+
+/* 題目卡與答題後的單字卡疊在同一個位置 */
+.quiz-stage {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  height: 260px;
+  margin: 0 auto 18px;
+}
+.quiz-stage .quiz-question-card {
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  overflow-y: auto;
+}
+.quiz-stage .quiz-answer-layer {
+  position: absolute;
+  inset: 0;
+  max-width: none;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+/* 答題後：題目卡漸隱、一般單字卡漸顯 */
+.quiz-stage.answered .quiz-question-card { opacity: 0; pointer-events: none; }
+.quiz-stage.answered .quiz-answer-layer { opacity: 1; pointer-events: auto; }
+
+/* 換題時瞬間重置，不播放漸變動畫 */
+#quiz-body.no-anim * { transition: none !important; }
+
+.quiz-card-meaning {
+  font-size: 1.6rem;
+  font-weight: bold;
+  word-break: break-all;
+}
+
+/* 三個選項：左、中、右 */
+.quiz-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.quiz-option {
+  min-height: 76px;
+  padding: 8px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  word-break: break-all;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+.quiz-option:active { opacity: 0.8; }
+.quiz-option.kind-word { font-size: 1.1rem; font-weight: bold; }
+.quiz-option.blank { visibility: hidden; pointer-events: none; }
+.quiz-options.answered .quiz-option { pointer-events: none; }
+.quiz-option.correct {
+  background: var(--success-green);
+  border-color: var(--success-green);
+  color: #ffffff;
+}
+.quiz-option.wrong {
+  background: var(--exam-red);
+  border-color: var(--exam-red);
+  color: #ffffff;
+}

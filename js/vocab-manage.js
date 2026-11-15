@@ -28,6 +28,33 @@ function getVocabWordbankForTask(task) {
 }
 
 // ------------------------------------------
+// 學習模式（每個單字庫 / 主題一種）：flashcard 單字卡 | choice 選擇題
+// 設定存在主題（group）物件的 studyMode 欄位，沒設定視為單字卡
+// ------------------------------------------
+function findGroupByUnitId(unitId) {
+    if (!unitId) return null;
+    return vocabBanks.find(g => (g.units || []).some(u => u.id === unitId)) || null;
+}
+
+function getVocabModeForTask(task) {
+    const group = findGroupByUnitId(task.vocabBankId);
+    return (group && group.studyMode === 'choice') ? 'choice' : 'flashcard';
+}
+
+function vocabModeLabel(mode) {
+    return mode === 'choice' ? '選擇題' : '單字卡';
+}
+
+// 進階工具 > 單字庫 > 單元列表上方的下拉選單
+function changeVocabGroupMode() {
+    const group = vocabBanks.find(g => g.groupId === currentSelectedGroupId);
+    if (!group) return;
+    const mode = document.getElementById('vocab-mode-select').value;
+    group.studyMode = (mode === 'choice') ? 'choice' : 'flashcard';
+    saveVocabBanks();
+}
+
+// ------------------------------------------
 // 單字列版面：直排檢視(row) / 橫排檢視(stack)
 //   直排：一個單字一行，單字 | 意思 | 讀音 並排
 //   橫排：一個單字三橫行，單字 / 意思 / 讀音(可換行) 上下排列
@@ -102,6 +129,48 @@ function refreshVocabTextareas() {
 // 動態單字列（輸入視窗與編輯視窗共用）
 // containerId 明確指定要放進哪個容器
 // ------------------------------------------
+// 意思欄：每個單字可有多個意思（一字多義）
+function refreshMeaningUI(meaningsEl) {
+    const items = meaningsEl.querySelectorAll('.vocab-meaning-item');
+    meaningsEl.classList.toggle('single', items.length <= 1); // 只剩一個時隱藏刪除鈕
+    items.forEach((item, i) => {
+        const input = item.querySelector('.input-meaning');
+        if (input) input.placeholder = items.length > 1 ? `意思 ${i + 1}` : '意思';
+    });
+}
+
+function addMeaningField(meaningsEl, value = '') {
+    const item = document.createElement('div');
+    item.className = 'vocab-meaning-item';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'vocab-field input-meaning';
+    input.value = value || '';
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'vocab-meaning-del';
+    del.textContent = '✕';
+    del.title = '刪除這個意思';
+    del.onclick = () => {
+        if (meaningsEl.querySelectorAll('.vocab-meaning-item').length <= 1) return; // 至少保留一欄
+        item.remove();
+        refreshMeaningUI(meaningsEl);
+    };
+
+    item.appendChild(input);
+    item.appendChild(del);
+
+    const addBtn = meaningsEl.querySelector('.vocab-meaning-add');
+    if (addBtn) meaningsEl.insertBefore(item, addBtn);
+    else meaningsEl.appendChild(item);
+
+    refreshMeaningUI(meaningsEl);
+    return input;
+}
+
+// meaning 可傳字串（單一意思）或陣列（多個意思）
 function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab-rows-container') {
     const container = document.getElementById(containerId);
     if (!container) {
@@ -119,11 +188,21 @@ function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab
     wordInput.placeholder = '單字';
     wordInput.value = word || '';
 
-    const meaningInput = document.createElement('input');
-    meaningInput.type = 'text';
-    meaningInput.className = 'vocab-field input-meaning';
-    meaningInput.placeholder = '意思';
-    meaningInput.value = meaning || '';
+    // 意思區：至少一欄，可用「＋ 意思」新增
+    const meaningsEl = document.createElement('div');
+    meaningsEl.className = 'vocab-meanings';
+
+    const addMeaningBtn = document.createElement('button');
+    addMeaningBtn.type = 'button';
+    addMeaningBtn.className = 'vocab-meaning-add';
+    addMeaningBtn.textContent = '＋ 意思';
+    addMeaningBtn.onclick = () => addMeaningField(meaningsEl, '').focus();
+    meaningsEl.appendChild(addMeaningBtn);
+
+    let meaningList = (Array.isArray(meaning) ? meaning : [meaning])
+        .map(m => String(m ?? '')).filter(m => m.trim() !== '');
+    if (meaningList.length === 0) meaningList = [''];
+    meaningList.forEach(m => addMeaningField(meaningsEl, m));
 
     // 讀音/補充用 textarea：可直接按 Enter 換行，刷卡時會照樣換行
     const readingInput = document.createElement('textarea');
@@ -140,7 +219,7 @@ function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab
     delBtn.onclick = () => row.remove();
 
     row.appendChild(wordInput);
-    row.appendChild(meaningInput);
+    row.appendChild(meaningsEl);
     row.appendChild(readingInput);
     row.appendChild(delBtn);
     container.appendChild(row);
@@ -158,18 +237,20 @@ function appendBlankVocabRow(containerId) {
     if (first) first.focus();
 }
 
-// 讀取容器內所有列 → [{word, meaning, reading}]（全空的列略過）
+// 讀取容器內所有列 → [{word, meanings, reading}]（全空的列略過；空白的意思欄忽略）
 function collectVocabRows(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return [];
     const result = [];
     container.querySelectorAll('.vocab-row').forEach(row => {
         const word = row.querySelector('.input-word')?.value.trim() || '';
-        const meaning = row.querySelector('.input-meaning')?.value.trim() || '';
+        const meanings = Array.from(row.querySelectorAll('.input-meaning'))
+            .map(input => input.value.trim())
+            .filter(m => m !== '');
         const reading = normalizeReadingText(row.querySelector('.input-reading')?.value || '')
             .replace(/[ \t]+\n/g, '\n') // 每行行尾空白去掉
             .trim();                    // 頭尾空行去掉，中間換行保留
-        if (word || meaning || reading) result.push({ word, meaning, reading });
+        if (word || meanings.length > 0 || reading) result.push({ word, meanings, reading });
     });
     return result;
 }
@@ -184,7 +265,7 @@ function fillVocabRows(containerId, words) {
         addVocabRow('', '', '', containerId);
         return;
     }
-    list.forEach(w => addVocabRow(w.word, w.meaning, w.reading, containerId));
+    list.forEach(w => addVocabRow(w.word, w.meanings, w.reading, containerId));
 }
 
 // ------------------------------------------
@@ -245,6 +326,12 @@ function startVocabSession(taskId) {
         return;
     }
 
+    // 選擇題模式：交給 vocab-quiz.js
+    if (getVocabModeForTask(task) === 'choice') {
+        startQuizSession(task);
+        return;
+    }
+
     const bank = getVocabWordbankForTask(task);
 
     activeVocabSession = {
@@ -289,30 +376,54 @@ function showNextWord() {
     }
 }
 
+// 一般單字卡各元素的 id；選擇題答題後出現的卡片使用另一組 id
+const FLASHCARD_IDS = {
+    word: 'card-word-text',
+    meaning: 'card-meaning-text',
+    reading: 'card-reading-text',
+    card: 'main-flashcard'
+};
+
+// 把一個單字填進單字卡（正面單字、背面意思與讀音）
+function renderFlashcardContent(entry, vocabFont, ids = FLASHCARD_IDS) {
+    const item = normalizeWordEntry(entry);
+    const readingText = normalizeReadingText(item.reading || '');
+
+    const wordEl = document.getElementById(ids.word);
+    const meaningEl = document.getElementById(ids.meaning);
+    const readingEl = document.getElementById(ids.reading);
+
+    if (wordEl) {
+        wordEl.innerText = item.word || '';
+        wordEl.className = `flashcard-word ${getCustomFontClass(vocabFont)}`;
+    }
+    if (meaningEl) {
+        meaningEl.innerHTML = renderMeaningsHtml(item.meanings, vocabFont);
+        meaningEl.style.fontSize = item.meanings.length > 1 ? '1.25rem' : '1.5rem';
+    }
+    if (readingEl) readingEl.innerHTML = parseMixedFontText(readingText, vocabFont);
+
+    const card = document.getElementById(ids.card);
+    if (card) card.classList.toggle('font-jp', vocabFont === 'jp');
+}
+
 function updateCardDOMContent() {
     const session = activeVocabSession;
     if (!session || session.currentIndex >= session.unlearnedWords.length) return;
+    renderFlashcardContent(session.unlearnedWords[session.currentIndex], session.vocabFont || 'default');
+}
 
-    const item = session.unlearnedWords[session.currentIndex];
-    const wordText = item.word || '';
-    const meaningText = item.meaning || '（無填寫意思）';
-    const readingText = normalizeReadingText(item.reading || '');
-
-    const vocabFont = session.vocabFont || 'default';
-
-    const wordEl = document.getElementById('card-word-text');
-    const meaningEl = document.getElementById('card-meaning-text');
-    const readingEl = document.getElementById('card-reading-text');
-
-    if (wordEl) {
-        wordEl.innerText = wordText;
-        wordEl.className = `flashcard-word ${getCustomFontClass(vocabFont)}`;
+// 意思的顯示：沒有 → 提示文字；一個 → 直接顯示；多個 → 分行並加編號
+function renderMeaningsHtml(meanings, vocabFont) {
+    if (!meanings || meanings.length === 0) {
+        return escapeHtml('（無填寫意思）');
     }
-    if (meaningEl) meaningEl.innerHTML = parseMixedFontText(meaningText, vocabFont);
-    if (readingEl) readingEl.innerHTML = parseMixedFontText(readingText, vocabFont);
-
-    const card = document.getElementById('main-flashcard');
-    if (card) card.classList.toggle('font-jp', vocabFont === 'jp');
+    if (meanings.length === 1) {
+        return parseMixedFontText(meanings[0], vocabFont);
+    }
+    return meanings.map((m, i) =>
+        `<div class="meaning-line"><span class="meaning-index">${i + 1}.</span> ${parseMixedFontText(m, vocabFont)}</div>`
+    ).join('');
 }
 
 function answerVocab(isKnown) {
@@ -326,14 +437,24 @@ function answerVocab(isKnown) {
     showNextWord();
 }
 
-// 刷完結算：原任務標為完成；有不熟的單字就在當天新增「待複習單字」任務
+// 單字卡模式刷完：把「不熟」的單字交給共用結算
 function finishVocabSession() {
     closeModal('vocab-flashcard-modal');
 
     if (!activeVocabSession || !activeVocabSession.taskId) return;
 
-    const currentTask = tasks.find(t => t.id === activeVocabSession.taskId);
     const unlearnedCount = activeVocabSession.unlearnedNext.length;
+    completeVocabTask(activeVocabSession.taskId, activeVocabSession.unlearnedNext, {
+        withMiss: `測驗完成！已自動為 ${unlearnedCount} 個不熟單字新增「待複習單字」任務。`,
+        allGood: '太棒了！所有單字皆已掌握，無須新增待複習卡片！'
+    });
+}
+
+// 共用結算（單字卡 / 選擇題）：原任務標為完成；有沒學會的單字就在當天新增「待複習單字」任務
+// unlearnedWords 為單字物件陣列；messages.withMiss / messages.allGood 為完成時的提示文字
+function completeVocabTask(taskId, unlearnedWords, messages) {
+    const currentTask = tasks.find(t => t.id === taskId);
+    const unlearnedCount = unlearnedWords.length;
 
     if (currentTask) {
         currentTask.isCompleted = true;
@@ -358,7 +479,7 @@ function finishVocabSession() {
                 stage: 1,
                 vocabBankId: currentTask.vocabBankId,
                 isVocab: true,
-                unlearnedWords: [...activeVocabSession.unlearnedNext], // 只有不熟的單字
+                unlearnedWords: unlearnedWords.map(w => normalizeWordEntry(w)), // 只有沒學會的單字
                 vocabFont: currentTask.vocabFont,
                 vocabState: 'ready',
                 weight: 0,
@@ -372,11 +493,7 @@ function finishVocabSession() {
 
     if (selectedDateStr) openDayModal(selectedDateStr);
 
-    if (unlearnedCount > 0) {
-        alert(`🎉 測驗完成！已自動為 ${unlearnedCount} 個不熟單字新增「待複習單字」任務。`);
-    } else {
-        alert('🎉 太棒了！所有單字皆已掌握，無須新增待複習卡片！');
-    }
+    alert(unlearnedCount > 0 ? messages.withMiss : messages.allGood);
 }
 
 function toggleCardFlip(containerElement) {
@@ -460,12 +577,13 @@ function openVocabManager() {
         const row = document.createElement('div');
         row.className = 'vocab-item-row';
         row.innerHTML = `
-            <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px;">
-                <strong>📁 ${escapeHtml(group.groupName || '未命名群組')}</strong>
-                <span style="font-size: 0.85rem; opacity: 0.7; margin-left: 6px;">(${unitCount} 個單元)</span>
+            <div style="flex: 1; min-width: 0; margin-right: 10px; word-break: break-all;">
+                <strong>${escapeHtml(group.groupName || '未命名群組')}</strong>
+                <span style="display: block; font-size: 0.85rem; opacity: 0.7;">${unitCount} 個單元，${vocabModeLabel(group.studyMode)}</span>
             </div>
             <div style="display: flex; gap: 8px; flex-shrink: 0;">
                 <button class="action-btn" onclick="openVocabUnitsModal('${group.groupId}')">檢視單元</button>
+                <button class="action-btn delete-btn" onclick="deleteVocabGroup('${group.groupId}')">刪除</button>
             </div>
         `;
         listContainer.appendChild(row);
@@ -483,6 +601,9 @@ function openVocabUnitsModal(groupId) {
 
     const titleEl = document.getElementById('vocab-units-title');
     if (titleEl) titleEl.innerText = group ? group.groupName : '單元列表';
+
+    const modeSelect = document.getElementById('vocab-mode-select');
+    if (modeSelect) modeSelect.value = (group && group.studyMode === 'choice') ? 'choice' : 'flashcard';
 
     const listContainer = document.getElementById('vocab-unit-list');
     if (!listContainer) return;
@@ -506,7 +627,7 @@ function openVocabUnitsModal(groupId) {
                 </div>
                 <div style="display: flex; gap: 8px; flex-shrink: 0;">
                     <button class="action-btn" onclick="openVocabBankDetail('${unit.id}')">檢視/編輯</button>
-                    <button class="action-btn" onclick="deleteVocabUnit('${unit.id}')" style="color: #ff3b30; border-color: rgba(255, 59, 48, 0.3);">刪除</button>
+                    <button class="action-btn delete-btn" onclick="deleteVocabUnit('${unit.id}')">刪除</button>
                 </div>
             `;
             listContainer.appendChild(row);
@@ -516,37 +637,77 @@ function openVocabUnitsModal(groupId) {
     openModal('vocab-units-modal');
 }
 
-// 刪除單元：移除單字庫，並處理引用它的任務
-function deleteVocabUnit(unitId) {
-    const unit = doubleFind(unitId);
-    if (!unit) return;
-
-    if (!confirm(`確定要刪除「${unit.name}」這個單字庫嗎？\n（該單元的「待複習單字」任務也會一併移除，其餘任務會變成一般任務）`)) return;
-
-    // 1. 從所屬群組移除；群組空了就整組移除
-    vocabBanks.forEach(g => { g.units = (g.units || []).filter(u => u.id !== unitId); });
-    vocabBanks = vocabBanks.filter(g => (g.units || []).length > 0);
-    saveVocabBanks();
-
-    // 2. 處理任務
-    tasks = tasks.filter(t => !(t.vocabBankId === unitId && t.type === 'vocab_review'));
+// 解除任務與單元的綁定：該單元的「待複習單字」任務移除，其餘任務變回一般任務
+function detachTasksFromUnits(unitIds) {
+    const ids = new Set(unitIds);
+    tasks = tasks.filter(t => !(ids.has(t.vocabBankId) && t.type === 'vocab_review'));
     tasks.forEach(t => {
-        if (t.vocabBankId === unitId) {
+        if (ids.has(t.vocabBankId)) {
             t.vocabBankId = null;
             t.enableVocab = false;
             t.isVocab = false;
             delete t.vocabState;
         }
     });
+}
+
+function countTasksBoundToUnits(unitIds) {
+    const ids = new Set(unitIds);
+    return tasks.filter(t => t.vocabBankId && ids.has(t.vocabBankId)).length;
+}
+
+function boundTasksNote(count) {
+    if (count <= 0) return '';
+    return `\n\n行事曆中有 ${count} 個任務綁定了這些單字：「待複習單字」任務會一併移除，其餘任務會變成一般任務。`;
+}
+
+// 刪除單一單元
+function deleteVocabUnit(unitId) {
+    const unit = doubleFind(unitId);
+    if (!unit) return;
+
+    const msg = `確定要刪除單元「${unit.name}」嗎？\n共 ${(unit.words || []).length} 個單字，刪除後無法復原。`
+        + boundTasksNote(countTasksBoundToUnits([unitId]));
+    if (!confirm(msg)) return;
+
+    // 從所屬群組移除；群組空了就整組移除
+    vocabBanks.forEach(g => { g.units = (g.units || []).filter(u => u.id !== unitId); });
+    vocabBanks = vocabBanks.filter(g => (g.units || []).length > 0);
+    saveVocabBanks();
+
+    detachTasksFromUnits([unitId]);
     saveAndRefresh();
 
-    // 3. 重新整理畫面
+    // 重新整理畫面
     if (vocabBanks.some(g => g.groupId === currentSelectedGroupId)) {
         openVocabUnitsModal(currentSelectedGroupId);
     } else {
         closeModal('vocab-units-modal');
         openVocabManager();
     }
+}
+
+// 刪除整個單字庫（主題，連同底下所有單元）
+function deleteVocabGroup(groupId) {
+    const group = vocabBanks.find(g => g.groupId === groupId);
+    if (!group) return;
+
+    const units = group.units || [];
+    const unitIds = units.map(u => u.id);
+    const wordCount = units.reduce((sum, u) => sum + (u.words || []).length, 0);
+
+    const msg = `確定要刪除整個單字庫「${group.groupName || '未命名群組'}」嗎？\n包含 ${units.length} 個單元、共 ${wordCount} 個單字，刪除後無法復原。`
+        + boundTasksNote(countTasksBoundToUnits(unitIds));
+    if (!confirm(msg)) return;
+
+    vocabBanks = vocabBanks.filter(g => g.groupId !== groupId);
+    saveVocabBanks();
+
+    detachTasksFromUnits(unitIds);
+    saveAndRefresh();
+
+    if (currentSelectedGroupId === groupId) currentSelectedGroupId = null;
+    openVocabManager(); // 重新整理主題列表
 }
 
 // 第三層：從單元列表進入，檢視 / 編輯單字
