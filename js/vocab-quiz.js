@@ -372,6 +372,19 @@ function quizOptionHtml(option, question, vocabFont) {
 }
 
 // 題目卡的標題與內容
+// 拼單字的提示（顯示在題目文字的下一行）：
+//   字數 <= 3：第一個字；字數 <= 6：前後各一個字；其餘：前後各兩個字。
+//   中間固定以三個底線代替，後面括號標示字數。例如 international → in___al (13)
+function buildSpellHint(word) {
+    const chars = Array.from(String(word ?? ''));
+    const len = chars.length;
+    if (len === 0) return '';
+    const head = len <= 6 ? 1 : 2;
+    const tail = len <= 3 ? 0 : (len <= 6 ? 1 : 2);
+    if (len <= head + tail) return `${chars.join('')} (${len})`;   // 沒有可隱藏的字（例如單一字元）
+    return `${chars.slice(0, head).join('')}___${tail > 0 ? chars.slice(len - tail).join('') : ''} (${len})`;
+}
+
 function renderQuizCard(q, vocabFont) {
     const labelEl = document.getElementById('quiz-card-label');
     const textEl = document.getElementById('quiz-card-text');
@@ -400,6 +413,32 @@ function renderQuizCard(q, vocabFont) {
         labelEl.innerText = '拼出這個意思的單字';
         showMeaning();
     }
+
+    renderSpellHint(q, textEl, vocabFont);
+}
+
+// 拼單字的提示列：放在題目文字的下一行，字型與字級跟題目文字一致。
+// 其他題型（選擇題、拼讀音）不顯示。
+function renderSpellHint(q, textEl, vocabFont) {
+    let hintEl = document.getElementById('quiz-card-hint');
+    if (!hintEl) {
+        hintEl = document.createElement('div');
+        hintEl.id = 'quiz-card-hint';
+        hintEl.style.marginTop = '10px';
+        textEl.insertAdjacentElement('afterend', hintEl);
+    }
+
+    const isSpellWord = (q.type === 'spell' && q.target !== 'reading');
+    if (!isSpellWord) {
+        hintEl.style.display = 'none';
+        hintEl.innerHTML = '';
+        return;
+    }
+
+    hintEl.className = textEl.className;                 // 與題目相同的樣式（字型、粗細、斷行）
+    hintEl.innerHTML = parseMixedFontText(buildSpellHint(q.entry.word), vocabFont);
+    hintEl.style.display = '';
+    hintEl.style.fontSize = textEl.style.fontSize;       // 與題目縮放後的字級一致
 }
 
 function resetSpellArea(q) {
