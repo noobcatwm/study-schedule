@@ -225,7 +225,9 @@ input[type="color"] {
     font-weight: bold;
     margin-bottom: 10px;
     color: var(--text);
-    word-break: break-all;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
 /* 檢視單字清單列表 */
@@ -319,10 +321,12 @@ body {
    預設為「直排檢視」：一個單字一行，三欄並排
    容器加上 .layout-stack 為「橫排檢視」：一個單字三橫行
    ========================================== */
+/* 直排檢視：單字 | 意思 | 刪除鈕。欄寬與欄位標題列使用同一組 grid 定義，確保對齊 */
 .vocab-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 34px;
   gap: 6px;
-  align-items: flex-start;
+  align-items: start;
 }
 /* 用 .vocab-row .vocab-field（權重較高）蓋過全域 input[type="text"] 的 padding / width */
 .vocab-row .vocab-field {
@@ -338,7 +342,6 @@ body {
   color: var(--text);
 }
 .vocab-row textarea.vocab-field {
-  display: block;
   resize: none;
   overflow-y: hidden;
 }
@@ -355,6 +358,7 @@ body {
 
 /* 橫排檢視 */
 .layout-stack .vocab-row {
+  display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
@@ -372,7 +376,7 @@ body {
 .layout-stack .vocab-row .input-word {
   padding-right: 50px; /* 留位置給右上角刪除鈕 */
 }
-.layout-stack .vocab-row textarea.input-reading {
+.layout-stack .vocab-row textarea.input-note {
   min-height: 64px;
 }
 .layout-stack .vocab-row .vocab-del-btn {
@@ -507,26 +511,30 @@ body {
 .quiz-card-meaning {
   font-size: 1.6rem;
   font-weight: bold;
-  word-break: break-all;
+  word-break: normal;
+  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
-/* 三個選項：左、中、右 */
+/* 三個選項：上、中、下，每個選項占滿整列寬度（長單字也放得下） */
 .quiz-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   margin-bottom: 14px;
 }
 .quiz-option {
-  min-height: 76px;
-  padding: 8px 6px;
+  min-height: 56px;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   font-size: 0.95rem;
   line-height: 1.35;
-  word-break: break-all;
+  word-break: normal;
+  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--border);
@@ -535,7 +543,11 @@ body {
   transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }
 .quiz-option:active { opacity: 0.8; }
-.quiz-option.kind-word { font-size: 1.1rem; font-weight: bold; }
+.quiz-option.kind-word {
+  font-size: 1.1rem;
+  font-weight: bold;
+  word-break: keep-all; /* 單字選項不從單字中間斷開 */
+}
 .quiz-option.blank { visibility: hidden; pointer-events: none; }
 .quiz-options.answered .quiz-option { pointer-events: none; }
 .quiz-option.correct {
@@ -547,4 +559,83 @@ body {
   background: var(--exam-red);
   border-color: var(--exam-red);
   color: #ffffff;
+}
+
+/* ==========================================
+   換行規則
+   - 單字（.flashcard-word、.quiz-option.kind-word）：不從單字中間斷開，
+     字級過大放不下時由 fitTextToWidth() 縮小字級
+   - 意思與讀音：英文只在空白處換行；中日文沒有空白，仍可在字與字之間換行
+   - overflow-wrap 只在單一字詞比整行還寬時才會介入，作為最後的保底
+   ========================================== */
+#card-meaning-text, #card-reading-text,
+#quiz-meaning-text, #quiz-reading-text {
+  word-break: normal;
+  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================
+   四個欄位：單字、意思、讀音、補充
+   直排檢視只顯示單字與意思；讀音與補充只在橫排檢視顯示（資料仍保留）
+   ========================================== */
+.vocab-row .input-reading,
+.vocab-row .input-note { display: none; }
+.layout-stack .vocab-row .input-reading,
+.layout-stack .vocab-row .input-note { display: block; }
+
+/* 單字卡 / 答題後單字卡背面的補充 */
+#card-note-text, #quiz-note-text {
+  white-space: pre-line;
+  line-height: 1.5;
+  word-break: normal;
+  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================
+   拼寫作答區
+   ========================================== */
+.quiz-spell { margin-bottom: 14px; }
+.quiz-spell-row { display: flex; gap: 8px; }
+.quiz-spell .quiz-spell-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 12px 14px;
+  font-size: 1.2rem;
+  text-align: center;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+.quiz-spell .quiz-spell-input:focus { outline: none; border-color: var(--primary); }
+.quiz-spell .quiz-spell-input.correct {
+  background: var(--success-green);
+  border-color: var(--success-green);
+  color: #ffffff;
+}
+.quiz-spell .quiz-spell-input.wrong {
+  background: var(--exam-red);
+  border-color: var(--exam-red);
+  color: #ffffff;
+}
+.quiz-spell .quiz-spell-submit {
+  padding: 0 18px;
+  font-weight: bold;
+  color: #ffffff;
+  background: var(--primary);
+  border-radius: 12px;
+}
+.quiz-spell .quiz-spell-result {
+  margin-top: 10px;
+  padding: 10px 12px;
+  font-weight: bold;
+  color: var(--success-green);
+  border: 1px solid var(--success-green);
+  border-radius: 12px;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }

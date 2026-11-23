@@ -53,9 +53,9 @@
         <div><strong>間隔複習 (1-3-7-14-30)：</strong>根據「艾賓浩斯遺忘曲線」設計。當你新增此類任務時，系統會自動幫你在第 1、3、7、14、30 天安排複習任務，幫助你將短期記憶轉化為長期記憶，非常適合背單字。</div>
         <div><strong>拉動任務欄：</strong>任務欄可長按拖動至欲更改日期的位置。</div>
         <div><strong>輔助記憶單字：</strong>搭配單字書使用。第一階段輸入單字書內的單字，建議只挑選不會的，就能輕鬆複習。</div>
-        <div><strong>輸入單字：</strong>輸入視窗右上角可切換「直排檢視」（一個單字一行）與「橫排檢視」（單字、意思、讀音各一橫行）。一字多義時，按「＋ 意思」可新增多個意思，刷單字時會分行並加上編號。讀音/補充欄可直接按 Enter 換行，刷單字時會照樣換行。</div>
+        <div><strong>輸入單字：</strong>每個單字有四個欄位：單字、意思、讀音、補充。輸入視窗右上角可切換「直排檢視」（一個單字一行，只顯示單字與意思）與「橫排檢視」（四個欄位各一橫行，要輸入讀音與補充請用這個）。一字多義時，按「＋ 意思」可新增多個意思，刷單字時會分行並加上編號。補充欄可直接按 Enter 換行，刷單字時會照樣換行。</div>
         <div><strong>單字庫與週期計畫：</strong>刪除週期計畫只會移除行事曆上的任務，單字庫會保留。要刪除單字庫，請到「進階工具 > 檢視所有單字庫」，可刪除整個單字庫或其中的單一單元。</div>
-        <div><strong>學習模式：</strong>到「進階工具 > 檢視所有單字庫 > 檢視單元」可為每個單字庫選擇「單字卡」或「選擇題」。選擇題會把每個單字的每個意思各考兩次（看單字選意思、看意思選單字），答錯的題目會在幾題之後再出現，答錯的單字也會加入待複習單字。</div>
+        <div><strong>學習模式：</strong>到「進階工具 > 檢視所有單字庫 > 檢視單元」可為每個單字庫選擇「單字卡」、「選擇題」、「拼寫」或「混合」（選擇題＋拼寫）。選擇題會把每個單字的每個意思各考兩次（看單字選意思、看意思選單字）。拼寫與混合模式可再選擇拼「單字」（看意思輸入單字，適合背英文）或拼「讀音」（看單字輸入讀音，適合背日文）。答錯的題目會在幾題之後再出現，答錯的單字也會加入待複習單字。</div>
         <div><strong>階段性任務與複習系統：</strong>背單字任務會自動切分為多個階段，完成當前階段後，系統會自動生成帶有原單元名稱的「待複習單字」任務，請翻開單字書再看看吧！</div>
       </div>
       
@@ -205,15 +205,14 @@
       <button class="action-btn" id="vocab-input-layout-btn" onclick="toggleVocabLayout()" style="flex-shrink: 0; white-space: nowrap;">切換為橫排檢視</button>
     </div>
     <p style="font-size: 0.85rem; opacity: 0.7; margin-bottom: 10px;">
-      請輸入單字的各項欄位（單字、意思、讀音/補充）。一字多義可按「＋ 意思」新增多個意思；讀音/補充可直接按 Enter 換行，刷卡時會照樣換行：
+      每個單字有四個欄位：單字、意思、讀音、補充。直排檢視只顯示單字與意思，要輸入讀音與補充請切換為橫排檢視。一字多義可按「＋ 意思」新增多個意思；補充可直接按 Enter 換行：
     </p>
 
     <!-- 欄位標題行 -->
-    <div id="vocab-input-header" style="display: flex; gap: 8px; margin-bottom: 5px; font-weight: bold; font-size: 0.85rem; opacity: 0.8;">
+    <div id="vocab-input-header" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 34px; gap: 6px; margin-bottom: 5px; font-weight: bold; font-size: 0.85rem; opacity: 0.8;">
       <div style="flex: 1;">單字 (必填)</div>
       <div style="flex: 1.4;">意思</div>
-      <div style="flex: 1;">讀音/其他</div>
-      <div style="width: 40px;"></div>
+      <div style="width: 34px;"></div>
     </div>
 
     <div id="vocab-input-rows-container" style="max-height: 45vh; overflow-y: auto; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;">
@@ -249,14 +248,15 @@
           <!-- 正面：顯示單字 -->
           <div class="flashcard-face flashcard-front">
             <div style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 10px;">單字 (點擊卡片翻看背面)</div>
-            <div id="card-word-text" style="font-size: 2.2rem; font-weight: bold; word-break: break-all;">Word</div>
+            <div id="card-word-text" style="font-size: 2.2rem; font-weight: bold;">Word</div>
           </div>
           
           <!-- 背面：顯示意思與讀音 -->
           <div class="flashcard-face flashcard-back">
-            <div style="font-size: 0.8rem; opacity: 0.8; margin-bottom: 10px;">意思與讀音</div>
-            <div id="card-meaning-text" style="font-size: 1.5rem; font-weight: bold; margin-bottom: 12px; word-break: break-all;">Meaning</div>
-            <div id="card-reading-text" style="font-size: 1.1rem; opacity: 0.9; word-break: break-all;">Reading</div>
+            <div style="font-size: 0.8rem; opacity: 0.8; margin-bottom: 10px;">意思、讀音與補充</div>
+            <div id="card-meaning-text" style="font-size: 1.5rem; font-weight: bold; margin-bottom: 12px;">Meaning</div>
+            <div id="card-reading-text" style="font-size: 1.1rem; opacity: 0.9;">Reading</div>
+            <div id="card-note-text" style="font-size: 0.95rem; opacity: 0.85; margin-top: 8px;"></div>
           </div>
 
         </div>
@@ -293,22 +293,32 @@
             <div class="flashcard" id="quiz-flashcard">
               <div class="flashcard-face flashcard-front">
                 <div style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 10px;">單字 (點擊卡片翻看背面)</div>
-                <div id="quiz-word-text" style="font-size: 2.2rem; font-weight: bold; word-break: break-all;"></div>
+                <div id="quiz-word-text" style="font-size: 2.2rem; font-weight: bold;"></div>
               </div>
               <div class="flashcard-face flashcard-back">
-                <div style="font-size: 0.8rem; opacity: 0.8; margin-bottom: 10px;">意思與讀音</div>
-                <div id="quiz-meaning-text" style="font-size: 1.5rem; font-weight: bold; margin-bottom: 12px; word-break: break-all;"></div>
-                <div id="quiz-reading-text" style="font-size: 1.1rem; opacity: 0.9; word-break: break-all;"></div>
+                <div style="font-size: 0.8rem; opacity: 0.8; margin-bottom: 10px;">意思、讀音與補充</div>
+                <div id="quiz-meaning-text" style="font-size: 1.5rem; font-weight: bold; margin-bottom: 12px;"></div>
+                <div id="quiz-reading-text" style="font-size: 1.1rem; opacity: 0.9;"></div>
+                <div id="quiz-note-text" style="font-size: 0.95rem; opacity: 0.85; margin-top: 8px;"></div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 三個選項（左、中、右）；選項不足時留空 -->
+        <!-- 三個選項（上、中、下）；選項不足時留空 -->
         <div class="quiz-options" id="quiz-options">
           <button class="quiz-option" id="quiz-opt-0" onclick="answerQuiz(0)"></button>
           <button class="quiz-option" id="quiz-opt-1" onclick="answerQuiz(1)"></button>
           <button class="quiz-option" id="quiz-opt-2" onclick="answerQuiz(2)"></button>
+        </div>
+
+        <!-- 拼寫作答區（拼寫題才會顯示，取代三個選項） -->
+        <div id="quiz-spell" class="quiz-spell hidden">
+          <div class="quiz-spell-row">
+            <input type="text" id="quiz-spell-input" class="quiz-spell-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" placeholder="輸入答案">
+            <button id="quiz-spell-submit" class="action-btn quiz-spell-submit" onclick="submitSpelling()">確認</button>
+          </div>
+          <div id="quiz-spell-result" class="quiz-spell-result hidden"></div>
         </div>
 
         <button id="quiz-next-btn" class="action-btn hidden" onclick="nextQuizQuestion()" style="width:100%; padding:12px; background: var(--primary); color:white; border-radius:10px; border:none; cursor:pointer; font-weight:bold;">下一題</button>
@@ -343,9 +353,22 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <label for="vocab-mode-select" style="display: inline; margin: 0; white-space: nowrap;">學習模式</label>
           <select id="vocab-mode-select" onchange="changeVocabGroupMode()" style="flex: 1; padding: 6px 8px; border-radius: 6px; background: var(--bg); color: var(--text); border: 1px solid var(--border);">
-            <option value="flashcard">單字卡（翻面，自評熟/不熟）</option>
+            <option value="flashcard">單字卡（自評熟/不熟）</option>
             <option value="choice">選擇題</option>
+            <option value="spelling">拼寫</option>
+            <option value="mixed">混合（選擇題＋拼寫）</option>
           </select>
+        </div>
+        <!-- 拼寫內容：只在「拼寫」與「混合」模式出現 -->
+        <div id="vocab-spell-target-row" class="hidden" style="margin-top: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label for="vocab-spell-target-select" style="display: inline; margin: 0; white-space: nowrap;">拼寫內容</label>
+            <select id="vocab-spell-target-select" onchange="changeVocabSpellTarget()" style="flex: 1; padding: 6px 8px; border-radius: 6px; background: var(--bg); color: var(--text); border: 1px solid var(--border);">
+              <option value="word">拼單字（適合英文）</option>
+              <option value="reading">拼讀音（適合日文）</option>
+            </select>
+          </div>
+          <div style="font-size: 0.75rem; opacity: 0.6; margin-top: 4px;">拼單字：看意思，輸入單字。拼讀音：看單字，輸入讀音。</div>
         </div>
         <div style="font-size: 0.75rem; opacity: 0.6; margin-top: 4px;">此設定套用到這個單字庫底下的所有單元。</div>
       </div>
@@ -373,11 +396,10 @@
       </div>
       
       <!-- 欄位標題提示 -->
-      <div id="vocab-detail-header" style="display: flex; gap: 6px; font-size: 0.8rem; opacity: 0.7; padding: 0 4px; margin-bottom: 4px;">
+      <div id="vocab-detail-header" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 34px; gap: 6px; font-size: 0.8rem; opacity: 0.7; padding: 0 9px; margin-bottom: 4px;">
         <div style="flex: 1;">單字</div>
         <div style="flex: 1.4;">意思</div>
-        <div style="flex: 1;">讀音/其他</div>
-        <div style="width: 40px;"></div>
+        <div style="width: 34px;"></div>
       </div>
 
       <!-- 動態清單容器：放所有單字列 -->

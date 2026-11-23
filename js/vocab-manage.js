@@ -28,21 +28,51 @@ function getVocabWordbankForTask(task) {
 }
 
 // ------------------------------------------
-// 學習模式（每個單字庫 / 主題一種）：flashcard 單字卡 | choice 選擇題
-// 設定存在主題（group）物件的 studyMode 欄位，沒設定視為單字卡
+// 學習模式（每個單字庫 / 主題一種）
+//   flashcard 單字卡 | choice 選擇題 | spelling 拼寫 | mixed 混合（選擇題 + 拼寫）
+//   拼寫與混合模式另有 spellTarget：word 拼單字（例如背英文）| reading 拼讀音（例如背日文）
+// 設定存在主題（group）物件的 studyMode / spellTarget 欄位，沒設定視為單字卡 / 拼單字
 // ------------------------------------------
+const VOCAB_STUDY_MODES = ['flashcard', 'choice', 'spelling', 'mixed'];
+
 function findGroupByUnitId(unitId) {
     if (!unitId) return null;
     return vocabBanks.find(g => (g.units || []).some(u => u.id === unitId)) || null;
 }
 
-function getVocabModeForTask(task) {
-    const group = findGroupByUnitId(task.vocabBankId);
-    return (group && group.studyMode === 'choice') ? 'choice' : 'flashcard';
+function getGroupStudyMode(group) {
+    return (group && VOCAB_STUDY_MODES.includes(group.studyMode)) ? group.studyMode : 'flashcard';
 }
 
-function vocabModeLabel(mode) {
-    return mode === 'choice' ? '選擇題' : '單字卡';
+function getGroupSpellTarget(group) {
+    return (group && group.spellTarget === 'reading') ? 'reading' : 'word';
+}
+
+function getVocabModeForTask(task) {
+    return getGroupStudyMode(findGroupByUnitId(task.vocabBankId));
+}
+
+// 顯示在主題列表上的模式說明
+function describeVocabMode(group) {
+    const mode = getGroupStudyMode(group);
+    const target = getGroupSpellTarget(group) === 'reading' ? '讀音' : '單字';
+    if (mode === 'choice') return '選擇題';
+    if (mode === 'spelling') return `拼寫（拼${target}）`;
+    if (mode === 'mixed') return `混合（選擇題＋拼${target}）`;
+    return '單字卡';
+}
+
+// 依目前主題的設定，更新單元列表上方的兩個下拉選單（拼寫內容只在拼寫 / 混合模式出現）
+function syncVocabModeControls(group) {
+    const mode = getGroupStudyMode(group);
+    const modeSelect = document.getElementById('vocab-mode-select');
+    if (modeSelect) modeSelect.value = mode;
+
+    const targetSelect = document.getElementById('vocab-spell-target-select');
+    if (targetSelect) targetSelect.value = getGroupSpellTarget(group);
+
+    const targetRow = document.getElementById('vocab-spell-target-row');
+    if (targetRow) targetRow.classList.toggle('hidden', !(mode === 'spelling' || mode === 'mixed'));
 }
 
 // 進階工具 > 單字庫 > 單元列表上方的下拉選單
@@ -50,23 +80,27 @@ function changeVocabGroupMode() {
     const group = vocabBanks.find(g => g.groupId === currentSelectedGroupId);
     if (!group) return;
     const mode = document.getElementById('vocab-mode-select').value;
-    group.studyMode = (mode === 'choice') ? 'choice' : 'flashcard';
+    group.studyMode = VOCAB_STUDY_MODES.includes(mode) ? mode : 'flashcard';
     saveVocabBanks();
+    syncVocabModeControls(group);
+}
+
+function changeVocabSpellTarget() {
+    const group = vocabBanks.find(g => g.groupId === currentSelectedGroupId);
+    if (!group) return;
+    group.spellTarget = (document.getElementById('vocab-spell-target-select').value === 'reading') ? 'reading' : 'word';
+    saveVocabBanks();
+    syncVocabModeControls(group);
 }
 
 // ------------------------------------------
 // 單字列版面：直排檢視(row) / 橫排檢視(stack)
-//   直排：一個單字一行，單字 | 意思 | 讀音 並排
-//   橫排：一個單字三橫行，單字 / 意思 / 讀音(可換行) 上下排列
+//   直排：一個單字一行，只顯示 單字 | 意思（讀音與補充的資料仍保留，只是不顯示）
+//   橫排：一個單字四橫行，單字 / 意思 / 讀音 / 補充(可換行) 上下排列
 // 版面只靠容器的 layout-stack class 切換，不重建資料列，所以切換不會遺失已輸入內容。
 // 偏好存在 localStorage，輸入視窗與編輯視窗共用。
 // ------------------------------------------
 const VOCAB_ROW_CONTAINERS = ['vocab-input-rows-container', 'vocab-rows-container'];
-
-// 直排欄位較窄，提示文字用短版，避免折成兩行把空白列撐高
-function readingPlaceholder() {
-    return getVocabLayout() === 'stack' ? '讀音/補充（可直接換行）' : '讀音/補充';
-}
 
 function getVocabLayout() {
     return localStorage.getItem(DB_VOCAB_LAYOUT) === 'stack' ? 'stack' : 'row';
@@ -92,8 +126,7 @@ function applyVocabLayout() {
         if (el) el.textContent = isStack ? '切換為直排檢視' : '切換為橫排檢視';
     });
 
-    document.querySelectorAll('.vocab-row .input-reading').forEach(ta => { ta.placeholder = readingPlaceholder(); });
-    refreshVocabTextareas(); // 版面改變後欄寬不同，重算讀音欄高度
+    refreshVocabTextareas(); // 版面改變後欄寬不同，重算補充欄高度
 }
 
 function toggleVocabLayout() {
@@ -102,15 +135,15 @@ function toggleVocabLayout() {
 }
 
 // ------------------------------------------
-// 讀音/補充：換行處理
+// 補充：換行處理
 // ------------------------------------------
-function normalizeReadingText(text) {
+function normalizeNoteText(text) {
     return String(text ?? '')
         .replace(/\r\n?/g, '\n')
         .replace(/\\n/g, '\n'); // 舊資料若手打了字面上的 \n，一律視為換行
 }
 
-// 讀音欄是 textarea，依內容自動增高（最高 160px，超過改為捲動）
+// 補充欄是 textarea，依內容自動增高（最高 160px，超過改為捲動）
 function autoGrowTextarea(ta) {
     if (!ta) return;
     ta.style.height = 'auto';
@@ -122,7 +155,7 @@ function autoGrowTextarea(ta) {
 }
 
 function refreshVocabTextareas() {
-    document.querySelectorAll('.vocab-row .input-reading').forEach(autoGrowTextarea);
+    document.querySelectorAll('.vocab-row .input-note').forEach(autoGrowTextarea);
 }
 
 // ------------------------------------------
@@ -171,7 +204,8 @@ function addMeaningField(meaningsEl, value = '') {
 }
 
 // meaning 可傳字串（單一意思）或陣列（多個意思）
-function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab-rows-container') {
+// 四個欄位：單字、意思（可多個）、讀音（單行）、補充（可換行）
+function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab-rows-container', note = '') {
     const container = document.getElementById(containerId);
     if (!container) {
         console.warn('找不到單字列容器：', containerId);
@@ -204,13 +238,20 @@ function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab
     if (meaningList.length === 0) meaningList = [''];
     meaningList.forEach(m => addMeaningField(meaningsEl, m));
 
-    // 讀音/補充用 textarea：可直接按 Enter 換行，刷卡時會照樣換行
-    const readingInput = document.createElement('textarea');
+    // 讀音：單行（拼寫讀音模式會拿它當標準答案）
+    const readingInput = document.createElement('input');
+    readingInput.type = 'text';
     readingInput.className = 'vocab-field input-reading';
-    readingInput.rows = 1;
-    readingInput.placeholder = readingPlaceholder();
-    readingInput.value = normalizeReadingText(reading);
-    readingInput.addEventListener('input', () => autoGrowTextarea(readingInput));
+    readingInput.placeholder = '讀音';
+    readingInput.value = String(reading ?? '').replace(/\r\n?|\n/g, ' ').trim();
+
+    // 補充：可直接按 Enter 換行，刷卡時會照樣換行
+    const noteInput = document.createElement('textarea');
+    noteInput.className = 'vocab-field input-note';
+    noteInput.rows = 1;
+    noteInput.placeholder = '補充（可直接換行）';
+    noteInput.value = normalizeNoteText(note);
+    noteInput.addEventListener('input', () => autoGrowTextarea(noteInput));
 
     const delBtn = document.createElement('button');
     delBtn.type = 'button';
@@ -221,10 +262,11 @@ function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab
     row.appendChild(wordInput);
     row.appendChild(meaningsEl);
     row.appendChild(readingInput);
+    row.appendChild(noteInput);
     row.appendChild(delBtn);
     container.appendChild(row);
 
-    autoGrowTextarea(readingInput);
+    autoGrowTextarea(noteInput);
     return row;
 }
 
@@ -237,7 +279,8 @@ function appendBlankVocabRow(containerId) {
     if (first) first.focus();
 }
 
-// 讀取容器內所有列 → [{word, meanings, reading}]（全空的列略過；空白的意思欄忽略）
+// 讀取容器內所有列 → [{word, meanings, reading, note}]（全空的列略過；空白的意思欄忽略）
+// 直排檢視時讀音與補充欄雖然看不到，資料仍然會一併讀取與保留。
 function collectVocabRows(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return [];
@@ -247,10 +290,11 @@ function collectVocabRows(containerId) {
         const meanings = Array.from(row.querySelectorAll('.input-meaning'))
             .map(input => input.value.trim())
             .filter(m => m !== '');
-        const reading = normalizeReadingText(row.querySelector('.input-reading')?.value || '')
+        const reading = (row.querySelector('.input-reading')?.value || '').trim();
+        const note = normalizeNoteText(row.querySelector('.input-note')?.value || '')
             .replace(/[ \t]+\n/g, '\n') // 每行行尾空白去掉
             .trim();                    // 頭尾空行去掉，中間換行保留
-        if (word || meanings.length > 0 || reading) result.push({ word, meanings, reading });
+        if (word || meanings.length > 0 || reading || note) result.push({ word, meanings, reading, note });
     });
     return result;
 }
@@ -265,7 +309,7 @@ function fillVocabRows(containerId, words) {
         addVocabRow('', '', '', containerId);
         return;
     }
-    list.forEach(w => addVocabRow(w.word, w.meanings, w.reading, containerId));
+    list.forEach(w => addVocabRow(w.word, w.meanings, w.reading, containerId, w.note));
 }
 
 // ------------------------------------------
@@ -326,8 +370,8 @@ function startVocabSession(taskId) {
         return;
     }
 
-    // 選擇題模式：交給 vocab-quiz.js
-    if (getVocabModeForTask(task) === 'choice') {
+    // 選擇題 / 拼寫 / 混合模式：交給 vocab-quiz.js
+    if (getVocabModeForTask(task) !== 'flashcard') {
         startQuizSession(task);
         return;
     }
@@ -376,32 +420,80 @@ function showNextWord() {
     }
 }
 
-// 一般單字卡各元素的 id；選擇題答題後出現的卡片使用另一組 id
+// 避免文字在單字中間被切斷：先用原字級排版，若有單一字詞比可用寬度還寬，就逐步縮小字級（最多縮到原本的一半）。
+// baseFontSize 為原字級（例如 '2.2rem'）；options.self 為 true 時，以元素本身（例如按鈕）的內容寬度為準，
+// 否則以父元素的內容寬度為準。
+function fitTextToWidth(el, baseFontSize, options = {}) {
+    if (!el) return;
+    const minScale = options.minScale || 0.5;
+
+    el.style.fontSize = baseFontSize;   // 先還原成原字級（清掉上一題縮小的結果）
+
+    const box = options.self ? el : el.parentElement;
+    if (!box || !box.clientWidth) return; // 視窗尚未顯示，無法量測
+
+    const baseSize = parseFloat(getComputedStyle(el).fontSize);
+    if (!baseSize) return;
+
+    const boxStyle = getComputedStyle(box);
+    const available = box.clientWidth - parseFloat(boxStyle.paddingLeft) - parseFloat(boxStyle.paddingRight);
+
+    // 量文字實際佔用的寬度（最寬的那一行）
+    const range = document.createRange();
+    const contentWidth = () => {
+        range.selectNodeContents(el);
+        return range.getBoundingClientRect().width;
+    };
+
+    const previousWrap = el.style.overflowWrap;
+    el.style.overflowWrap = 'normal';   // 量測時不允許從單字中間斷開，太寬的字才會顯示出來
+
+    const SAFETY = 2;                   // 留 2px 安全邊界，避免差不到 1px 時仍被切斷
+    const minSize = baseSize * minScale;
+    let size = baseSize;
+    while (contentWidth() > available - SAFETY && size > minSize) {
+        size = Math.max(minSize, size - Math.max(1, baseSize * 0.04));
+        el.style.fontSize = size + 'px';
+    }
+
+    el.style.overflowWrap = previousWrap;
+}
+
+// 一般單字卡各元素的 id；選擇題 / 拼寫答題後出現的卡片使用另一組 id
 const FLASHCARD_IDS = {
     word: 'card-word-text',
     meaning: 'card-meaning-text',
     reading: 'card-reading-text',
+    note: 'card-note-text',
     card: 'main-flashcard'
 };
 
-// 把一個單字填進單字卡（正面單字、背面意思與讀音）
+// 把一個單字填進單字卡（正面單字、背面意思 / 讀音 / 補充）
 function renderFlashcardContent(entry, vocabFont, ids = FLASHCARD_IDS) {
     const item = normalizeWordEntry(entry);
-    const readingText = normalizeReadingText(item.reading || '');
 
     const wordEl = document.getElementById(ids.word);
     const meaningEl = document.getElementById(ids.meaning);
     const readingEl = document.getElementById(ids.reading);
+    const noteEl = document.getElementById(ids.note);
 
     if (wordEl) {
         wordEl.innerText = item.word || '';
         wordEl.className = `flashcard-word ${getCustomFontClass(vocabFont)}`;
+        fitTextToWidth(wordEl, '2.2rem');
     }
     if (meaningEl) {
         meaningEl.innerHTML = renderMeaningsHtml(item.meanings, vocabFont);
-        meaningEl.style.fontSize = item.meanings.length > 1 ? '1.25rem' : '1.5rem';
+        fitTextToWidth(meaningEl, item.meanings.length > 1 ? '1.25rem' : '1.5rem');
     }
-    if (readingEl) readingEl.innerHTML = parseMixedFontText(readingText, vocabFont);
+    if (readingEl) {
+        readingEl.innerHTML = parseMixedFontText(item.reading, vocabFont);
+        fitTextToWidth(readingEl, '1.1rem');
+    }
+    if (noteEl) {
+        noteEl.innerHTML = parseMixedFontText(normalizeNoteText(item.note), vocabFont);
+        fitTextToWidth(noteEl, '0.95rem');
+    }
 
     const card = document.getElementById(ids.card);
     if (card) card.classList.toggle('font-jp', vocabFont === 'jp');
@@ -577,9 +669,9 @@ function openVocabManager() {
         const row = document.createElement('div');
         row.className = 'vocab-item-row';
         row.innerHTML = `
-            <div style="flex: 1; min-width: 0; margin-right: 10px; word-break: break-all;">
+            <div style="flex: 1; min-width: 0; margin-right: 10px; word-break: normal; overflow-wrap: anywhere;">
                 <strong>${escapeHtml(group.groupName || '未命名群組')}</strong>
-                <span style="display: block; font-size: 0.85rem; opacity: 0.7;">${unitCount} 個單元，${vocabModeLabel(group.studyMode)}</span>
+                <span style="display: block; font-size: 0.85rem; opacity: 0.7;">${unitCount} 個單元，${describeVocabMode(group)}</span>
             </div>
             <div style="display: flex; gap: 8px; flex-shrink: 0;">
                 <button class="action-btn" onclick="openVocabUnitsModal('${group.groupId}')">檢視單元</button>
@@ -602,8 +694,7 @@ function openVocabUnitsModal(groupId) {
     const titleEl = document.getElementById('vocab-units-title');
     if (titleEl) titleEl.innerText = group ? group.groupName : '單元列表';
 
-    const modeSelect = document.getElementById('vocab-mode-select');
-    if (modeSelect) modeSelect.value = (group && group.studyMode === 'choice') ? 'choice' : 'flashcard';
+    syncVocabModeControls(group);
 
     const listContainer = document.getElementById('vocab-unit-list');
     if (!listContainer) return;

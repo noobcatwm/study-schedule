@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.2.0";
+const APP_VERSION = "v1.2.1";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
@@ -27,13 +27,17 @@ let vocabBanks = [];
 let capacities = [];
 let recentColors = [];
 
-// 單字資料的標準格式：{ word: 字串, meanings: [字串, ...], reading: 字串 }
-// 相容舊格式：純字串、或單一 meaning 字串的物件
+// 單字資料的標準格式：{ word: 單字, meanings: [意思, ...], reading: 讀音（單行）, note: 補充（可多行） }
+// 相容舊格式：
+//   - 純字串
+//   - 單一 meaning 字串的物件
+//   - 沒有 note 欄位的舊資料：「讀音/補充」原本合在同一欄，遷移時整段都放進補充，讀音留空
 function normalizeWordEntry(item) {
   if (typeof item === 'string') {
-    return { word: item, meanings: [], reading: '' };
+    return { word: item, meanings: [], reading: '', note: '' };
   }
   item = item || {};
+
   let meanings = [];
   if (Array.isArray(item.meanings)) {
     meanings = item.meanings;
@@ -41,10 +45,29 @@ function normalizeWordEntry(item) {
     meanings = [item.meaning];
   }
   meanings = meanings.map(m => String(m ?? '').trim()).filter(m => m !== '');
+
+  let reading = '';
+  let note;
+  if (typeof item.note === 'string') {
+    reading = String(item.reading ?? '');
+    note = item.note;
+  } else {
+    // 舊版資料（沒有 note 欄位）：「讀音/補充」整段移到補充，不自動填到讀音。
+    // 字面上的 \n 也視為換行。
+    note = String(item.reading ?? '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/\\n/g, '\n')
+      .split('\n')
+      .map(l => l.trim())
+      .join('\n')
+      .trim();
+  }
+
   return {
     word: item.word || '',
     meanings: meanings,
-    reading: item.reading || ''
+    reading: reading,
+    note: note
   };
 }
 
