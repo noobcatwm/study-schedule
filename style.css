@@ -639,3 +639,5 @@ body {
   word-break: normal;
   overflow-wrap: anywhere;
 }
+
+.form-divider { border-top: 1px solid var(--border); margin: 15px 0; }

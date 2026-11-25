@@ -126,6 +126,32 @@
         <div class="modal-title">新增計畫</div>
         <button class="close-btn" onclick="closeModal('add-modal')">X</button>
       </div>
+
+      <div class="form-divider"></div>
+
+      <!-- 快捷選擇 -->
+      <div class="form-group">
+        <label>快捷選擇</label>
+        <div style="display:flex; gap:8px;">
+          <select id="preset-select" onchange="applyPreset()" style="flex:1;">
+            <option value="">— 不使用 —</option>
+          </select>
+          <button class="action-btn delete-btn hidden" id="preset-delete-btn" onclick="deletePreset()" style="white-space:nowrap;">刪除</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom: 10px;">
+        <div class="form-group" style="flex:1; margin-bottom: 0;">
+          <label>類別名稱</label>
+          <input type="text" id="preset-name" placeholder="例如：英文">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label>標籤顏色</label>
+          <input type="color" id="preset-color" value="#0a84ff">
+        </div>
+      </div>
+      <button class="action-btn" onclick="addPreset()" style="width:100%; border:1px dashed var(--border);">＋ 新增快捷選擇</button>
+
+      <div class="form-divider"></div>
       
       <div class="form-group">
         <label>任務類型</label>

@@ -1,6 +1,9 @@
 // tasks / vocabBanks 已由 config-state.js 載入，這裡只載入其餘設定
 capacities = JSON.parse(localStorage.getItem(DB_CAPS) || '[5,5,5,5,5,5,5]');
 recentColors = JSON.parse(localStorage.getItem(DB_COLORS) || '["#0a84ff", "#ff9f0a", "#bf5af2"]');
+quickPresets = [];
+try { quickPresets = JSON.parse(localStorage.getItem(DB_PRESETS) || '[]'); } catch (e) { quickPresets = []; }
+if (!Array.isArray(quickPresets)) quickPresets = [];
 let selectedDateStr = "";
 
 let currentWorkingTask = null; // 當前操作的任務
@@ -211,7 +214,14 @@ function renderCalendar() {
         cell.classList.add('all-completed');
         }
         
-        let dotsHtml = dayTasks.filter(t => t.type !== 'exam').map(t => 
+        // 同一個群組（groupId）的計畫，同一天最多只顯示一個點
+        const seenGroupIds = new Set();
+        let dotsHtml = dayTasks.filter(t => t.type !== 'exam').filter(t => {
+            if (!t.groupId) return true;
+            if (seenGroupIds.has(t.groupId)) return false;
+            seenGroupIds.add(t.groupId);
+            return true;
+        }).map(t => 
         `<div class="dot" style="background-color: ${t.color}"></div>`
         ).join('');
         
@@ -232,10 +242,63 @@ function openDayModal(dateStr) {
     openModal('day-modal');
 }
 
+// ---------- 快捷選擇 ----------
+function savePresets() {
+    localStorage.setItem(DB_PRESETS, JSON.stringify(quickPresets));
+}
+
+function renderPresetSelect(selectedId = '') {
+    const sel = document.getElementById('preset-select');
+    sel.innerHTML = '<option value="">— 不使用 —</option>' + quickPresets.map(p =>
+        `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`
+    ).join('');
+    sel.value = selectedId;
+    document.getElementById('preset-delete-btn').classList.toggle('hidden', !selectedId);
+}
+
+// 選擇快捷選擇：自動填入「任務類型」、「計畫名稱」與「主題標籤顏色」
+// fillTitle 為 false 時不動計畫名稱（新增快捷選擇後使用，避免蓋掉使用者已輸入的名稱）
+function applyPreset(fillTitle = true) {
+    const id = document.getElementById('preset-select').value;
+    document.getElementById('preset-delete-btn').classList.toggle('hidden', !id);
+    const p = quickPresets.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('task-type').value = p.type || 'study';
+    document.getElementById('task-color').value = p.color;
+    if (fillTitle) document.getElementById('task-title').value = p.name;
+    toggleFormFields();
+}
+
+// 新增快捷選擇：類別名稱 + 標籤顏色；任務類型取用表單當下選的類型
+function addPreset() {
+    const nameInput = document.getElementById('preset-name');
+    const name = nameInput.value.trim();
+    if (!name) return alert('請輸入類別名稱');
+    const color = document.getElementById('preset-color').value;
+    const type = document.getElementById('task-type').value;
+    const preset = { id: Date.now().toString(), name: name, color: color, type: type };
+    quickPresets.push(preset);
+    savePresets();
+    nameInput.value = '';
+    renderPresetSelect(preset.id);
+    applyPreset(false);
+}
+
+function deletePreset() {
+    const id = document.getElementById('preset-select').value;
+    const p = quickPresets.find(x => x.id === id);
+    if (!p || !confirm(`確定要刪除快捷選擇「${p.name}」嗎？`)) return;
+    quickPresets = quickPresets.filter(x => x.id !== id);
+    savePresets();
+    renderPresetSelect('');
+}
+
 function openAddTaskModal() {
     closeModal('day-modal');
     document.getElementById('task-type').value = 'study';
     document.getElementById('task-title').value = '';
+    document.getElementById('preset-name').value = '';
+    renderPresetSelect('');
     toggleFormFields();
     openModal('add-modal');
 }
@@ -557,6 +620,7 @@ function exportData() {
         tasks: tasks,
         capacities: capacities,
         recentColors: recentColors,
+        quickPresets: quickPresets,
         vocabBanks_V5: vocabBanks, // 直接打包整個雙層單字庫
         theme: localStorage.getItem(DB_THEME) || 'dark'
     }; 
@@ -584,6 +648,8 @@ function importData(event) {
                 if (data.capacities) { capacities = data.capacities; localStorage.setItem(DB_CAPS, JSON.stringify(capacities)); } 
                 if (data.recentColors) { recentColors = data.recentColors; localStorage.setItem(DB_COLORS, JSON.stringify(recentColors)); } 
                 
+                if (Array.isArray(data.quickPresets)) { quickPresets = data.quickPresets; savePresets(); }
+
                 // 2. 直接還原雙層單字庫 (如果備份檔裡有就直接覆蓋)
                 if (Array.isArray(data.vocabBanks_V5)) {
                     vocabBanks = data.vocabBanks_V5;

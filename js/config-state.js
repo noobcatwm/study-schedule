@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.2.1a";
+const APP_VERSION = "v1.2.2";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
@@ -15,6 +15,7 @@ const DB_VOCAB_BANKS = `vocabBanks_${DB_VERSION}`;
 const DB_CAPS = `calendarCaps_${DB_VERSION}`;
 const DB_COLORS = `recentColors_${DB_VERSION}`;
 const DB_THEME = `calendarTheme_${DB_VERSION}`;
+const DB_PRESETS = `quickPresets_${DB_VERSION}`; // 新增計畫的「快捷選擇」清單
 const DB_VOCAB_LAYOUT = `vocabLayout_${DB_VERSION}`; // 單字輸入/編輯視窗的版面偏好：row(直排) | stack(橫排)
 const REVIEW_INTERVALS = [0, 1, 4, 11, 25, 55];
 
