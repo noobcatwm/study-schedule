@@ -1,6 +1,6 @@
 // tasks / vocabBanks 已由 config-state.js 載入，這裡只載入其餘設定
 capacities = JSON.parse(localStorage.getItem(DB_CAPS) || '[5,5,5,5,5,5,5]');
-recentColors = JSON.parse(localStorage.getItem(DB_COLORS) || '["#0a84ff", "#ff9f0a", "#bf5af2"]');
+recentColors = JSON.parse(localStorage.getItem(DB_COLORS) || '["#7d9d98", "#d0a977", "#a99bb8"]');
 quickPresets = [];
 try { quickPresets = JSON.parse(localStorage.getItem(DB_PRESETS) || '[]'); } catch (e) { quickPresets = []; }
 if (!Array.isArray(quickPresets)) quickPresets = [];
@@ -11,6 +11,13 @@ let activeVocabSession = { words: [], unlearnedNext: [], currentIndex: 0, vocabF
 let currentManagingGroupId = null; // 進階設定目前管理的單字組
 let currentWorkingBankId = null;
 let reviewTask = null;
+let justCompletedId = null;  // 剛打勾完成的任務，讓它播放完成動畫
+
+// 畫面切換：today(今天) / calendar(日曆) / vocab(單字)
+let currentView = 'today';
+let calendarInitScrolled = false;
+let addTaskOrigin = 'day';   // 新增計畫是從哪裡開的：'day'(日期視窗) | 'today'(今天畫面)
+let lastRenderedDate = '';   // 上次渲染「今天」時的日期，跨日回到 App 時用來判斷要不要重畫
 
 function doubleFind(arg1, arg2 = null) {
     const vocabGroups = vocabBanks; // 一律使用全域記憶體資料，修改後呼叫 saveVocabBanks() 存檔
@@ -153,7 +160,7 @@ function updateExamCountdown() {
     let diffTime = examDate - today;
     let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
     
-    banner.className = 'exam-countdown-banner';
+    banner.className = 'exam-countdown-banner' + (diffDays <= 3 ? ' urgent' : '');
     if (diffDays === 0) {
     banner.innerHTML = `<span>[倒數] ${escapeHtml(nextExam.title)} 就在今天！</span><span>考試加油！</span>`;
     } else {
@@ -232,12 +239,24 @@ function renderCalendar() {
     }
 }
 
-function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
-function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+function openModal(modalId) {
+    const el = document.getElementById(modalId);
+    el.classList.remove('closing');
+    el.classList.add('active');
+}
+function closeModal(modalId) {
+    const el = document.getElementById(modalId);
+    if (!el.classList.contains('active') || el.classList.contains('closing')) return;
+    if (document.body.classList.contains('no-anim')) { el.classList.remove('active'); return; }
+    el.classList.add('closing');
+    // 退場期間若又被重新開啟（openModal 會移除 closing），就不要關掉
+    setTimeout(() => { if (el.classList.contains('closing')) el.classList.remove('active', 'closing'); }, 180);
+}
 
 function openDayModal(dateStr) {
     selectedDateStr = dateStr;
     document.getElementById('day-modal-title').innerText = dateStr;
+    staggerIn(document.getElementById('task-list'));
     renderTaskList(dateStr);
     openModal('day-modal');
 }
@@ -293,7 +312,10 @@ function deletePreset() {
     renderPresetSelect('');
 }
 
-function openAddTaskModal() {
+function openAddTaskModal(origin = 'day') {
+    addTaskOrigin = origin;
+    // 從「今天」畫面新增時，沒有經過日期視窗，日期要自己指定為今天
+    if (origin === 'today') selectedDateStr = formatDate(new Date());
     closeModal('day-modal');
     document.getElementById('task-type').value = 'study';
     document.getElementById('task-title').value = '';
@@ -326,22 +348,17 @@ function toggleFormFields() {
     }
 }
 
-function renderTaskList(dateStr) {
-    const list = document.getElementById('task-list');
-    const dayTasks = tasks.filter(t => t.dueDate === dateStr);
-    
-    if (dayTasks.length === 0) {
-    list.innerHTML = '<div style="color:var(--sub-text); text-align:center;">無排定計畫。</div>';
-    return;
-    }
-
-    list.innerHTML = dayTasks.map(t => {
+// 任務列表 HTML（日期視窗與「今天」畫面共用）；draggable 為 true 時才綁定長按拖曳（只有日期視窗能拖到別天）
+function buildTaskItemsHtml(dayTasks, draggable) {
+    return dayTasks.map((t, i) => {
     let badge = t.type === 'exam' ? '[警戒] 考試' : (t.type === 'periodic' ? `[階段 ${t.stage}]` : '[讀書]');
     let colorStyle = t.type !== 'exam' ? t.color : 'var(--exam-red)';
-    
+    const dragAttrs = draggable
+        ? `onmousedown="initDrag(event, '${t.id}')" ontouchstart="initDrag(event, '${t.id}')"`
+        : '';
+
     return `
-    <div class="task-item ${t.isCompleted ? 'completed' : ''}" style="border-left-color: ${colorStyle}"
-            onmousedown="initDrag(event, '${t.id}')" ontouchstart="initDrag(event, '${t.id}')">
+    <div class="task-item ${t.isCompleted ? 'completed' : ''} ${t.id === justCompletedId ? 'just-done' : ''}" style="--i:${i}; border-left-color: ${colorStyle}" ${dragAttrs}>
         <div class="task-info">
         <div class="task-title">${escapeHtml(t.title)}</div>
         <div class="task-meta">${badge} | 負荷: ${t.weight || 0}</div>
@@ -354,10 +371,67 @@ function renderTaskList(dateStr) {
     }).join('');
 }
 
+function renderTaskList(dateStr) {
+    const list = document.getElementById('task-list');
+    const dayTasks = tasks.filter(t => t.dueDate === dateStr);
+    
+    if (dayTasks.length === 0) {
+    list.innerHTML = '<div style="color:var(--sub-text); text-align:center;">無排定計畫。</div>';
+    return;
+    }
+
+    list.innerHTML = buildTaskItemsHtml(dayTasks, true);
+}
+
+// 「今天」畫面：等同於原本在日曆點今天會看到的內容
+function renderToday() {
+    const todayStr = formatDate(new Date());
+    lastRenderedDate = todayStr;
+
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    const dateEl = document.getElementById('today-date');
+    if (dateEl) dateEl.innerText = `今天　${todayStr}（${weekdays[new Date().getDay()]}）`;
+
+    const list = document.getElementById('today-task-list');
+    if (!list) return;
+    const dayTasks = tasks.filter(t => t.dueDate === todayStr);
+
+    if (dayTasks.length === 0) {
+    list.innerHTML = '<div style="color:var(--sub-text); text-align:center;">今天沒有排定計畫。</div>';
+    return;
+    }
+    list.innerHTML = buildTaskItemsHtml(dayTasks, false);
+}
+
+// 底部切換列：今天 / 日曆 / 單字
+function switchView(name) {
+    currentView = name;
+    ['today', 'calendar', 'vocab'].forEach(v => {
+        document.getElementById('view-' + v).classList.toggle('active', v === name);
+    });
+    document.querySelectorAll('#bottom-nav .nav-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === name);
+    });
+
+    document.getElementById('bottom-nav').style.setProperty('--idx', ['today', 'calendar', 'vocab'].indexOf(name));
+
+    if (name === 'today') { staggerIn(document.getElementById('today-task-list')); renderToday(); }
+    if (name === 'vocab' && typeof renderVocabManager === 'function') {
+        staggerIn(document.getElementById('vocab-group-list'));
+        renderVocabManager();
+    }
+    if (name === 'calendar' && !calendarInitScrolled) {
+        // 日曆畫面第一次顯示時才捲動（隱藏狀態下設定 scrollTop 無效）
+        calendarInitScrolled = true;
+        document.getElementById('calendar-scroll').scrollTop = 200;
+    }
+}
+
 function toggleComplete(id) {
     let t = tasks.find(x => x.id === id);
-    if (t) t.isCompleted = !t.isCompleted;
+    if (t) { t.isCompleted = !t.isCompleted; if (t.isCompleted) justCompletedId = id; }
     saveAndRefresh();
+    justCompletedId = null;
 }
 
 function deleteTask(id) {
@@ -509,7 +583,8 @@ function saveNewTask() {
 
     closeModal('add-modal');
     saveAndRefresh();
-    openDayModal(selectedDateStr);
+    // 從日期視窗新增的才回到日期視窗；從「今天」畫面新增的，直接看到更新後的今天
+    if (addTaskOrigin === 'day') openDayModal(selectedDateStr);
 }
 
 function openToolsModal() {
@@ -582,7 +657,7 @@ function clearSpecificMonth() {
 function deletePeriodicGroup(groupId) {
     // 刪除週期計畫只會移除行事曆上的任務，單字庫會保留
     const hasVocab = tasks.some(t => t.groupId === groupId && t.vocabBankId);
-    const note = hasVocab ? "\n\n單字庫不會被刪除，如需刪除請到「進階工具 > 檢視所有單字庫」。" : "";
+    const note = hasVocab ? "\n\n單字庫不會被刪除，如需刪除請到底部的「單字」畫面。" : "";
     if(!confirm("確定要刪除此週期計畫嗎？(所有與此相關的已排定、未排定任務都會移除)" + note)) return;
     tasks = tasks.filter(t => t.groupId !== groupId);
     saveAndRefresh();
@@ -592,9 +667,11 @@ function deletePeriodicGroup(groupId) {
 function saveAndRefresh() {
     localStorage.setItem(DB_TASKS, JSON.stringify(tasks));
     renderCalendar();
+    renderToday();
     if (document.getElementById('day-modal').classList.contains('active')) {
         renderTaskList(selectedDateStr);
     }
+    if (currentView === 'vocab' && typeof renderVocabManager === 'function') renderVocabManager();
 }
 
 // 切換主題函式
@@ -622,7 +699,9 @@ function exportData() {
         recentColors: recentColors,
         quickPresets: quickPresets,
         vocabBanks_V5: vocabBanks, // 直接打包整個雙層單字庫
-        theme: localStorage.getItem(DB_THEME) || 'dark'
+        theme: localStorage.getItem(DB_THEME) || 'dark',
+        palette: localStorage.getItem(DB_PALETTE) || 'morandi',
+        animations: localStorage.getItem(DB_ANIM) || 'on'
     }; 
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); 
@@ -667,6 +746,10 @@ function importData(event) {
                     if (typeof updateThemeButtonText === 'function') updateThemeButtonText(); 
                 } 
                 
+                if (PALETTES.includes(data.palette)) localStorage.setItem(DB_PALETTE, data.palette);
+                if (data.animations === 'on' || data.animations === 'off') localStorage.setItem(DB_ANIM, data.animations);
+                applyAppearance();
+
                 // 4. 儲存並重新渲染所有畫面 
                 saveAndRefresh(); 
                 renderCapacities(); 
@@ -698,10 +781,19 @@ updateThemeButtonText();
 renderCapacities();
 renderRecentColors();
 renderCalendar();
+applyAppearance();
+bindProgressBar('vocab-progress', 'vocab-progress-fill');
+bindProgressBar('quiz-progress', 'quiz-progress-fill');
+switchView('today');
 
-setTimeout(() => {
-    document.getElementById('calendar-scroll').scrollTop = 200; 
-}, 100);
+// App 放在背景過了午夜再切回來時，「今天」與日曆的標記要跟著換日
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (formatDate(new Date()) !== lastRenderedDate) {
+        renderCalendar();
+        renderToday();
+    }
+});
 
 // ============================================
 // 長按拖曳核心邏輯 (Drag and Drop)
@@ -867,10 +959,55 @@ function toggleTaskComplete(taskId) {
   if (!task) return;
 
   task.isCompleted = !task.isCompleted;
+  if (task.isCompleted) justCompletedId = taskId;
+  // saveAndRefresh 會一併刷新日曆、今天畫面與（若開著的）日期視窗
   saveAndRefresh();
+  justCompletedId = null;
+}
 
-  // 若當前在每日詳細視窗，即時刷新
-  if (typeof openDayModal === 'function' && selectedDateStr) {
-    openDayModal(selectedDateStr);
-  }
+
+// ============================================
+// 外觀：配色與動畫（設定在「進階工具」）
+// ============================================
+function applyAppearance() {
+    let palette = localStorage.getItem(DB_PALETTE);
+    if (!PALETTES.includes(palette)) palette = 'morandi';
+    const animOff = localStorage.getItem(DB_ANIM) === 'off';
+
+    document.body.dataset.palette = palette;
+    document.body.classList.toggle('no-anim', animOff);
+    document.querySelectorAll('.palette-opt').forEach(b => b.classList.toggle('active', b.dataset.palette === palette));
+    const toggle = document.getElementById('anim-toggle');
+    if (toggle) toggle.checked = !animOff;
+}
+
+function setPalette(name) {
+    localStorage.setItem(DB_PALETTE, name);
+    applyAppearance();
+}
+
+function setAnimations(on) {
+    localStorage.setItem(DB_ANIM, on ? 'on' : 'off');
+    applyAppearance();
+}
+
+// 列表第一次出現時讓項目依序進場（之後的重新渲染不再重播，避免打勾時整排閃動）
+function staggerIn(el) {
+    if (!el) return;
+    el.classList.add('stagger');
+    clearTimeout(el._staggerTimer);
+    el._staggerTimer = setTimeout(() => el.classList.remove('stagger'), 900);
+}
+
+// 進度條：監看「3 / 10」這類進度文字，不必改動出題邏輯
+function bindProgressBar(textId, fillId) {
+    const text = document.getElementById(textId);
+    const fill = document.getElementById(fillId);
+    if (!text || !fill) return;
+    const update = () => {
+        const m = text.textContent.match(/(\d+)\s*\/\s*(\d+)/);
+        fill.style.width = m && +m[2] > 0 ? Math.min(100, (+m[1] / +m[2]) * 100) + '%' : '0%';
+    };
+    new MutationObserver(update).observe(text, { childList: true, characterData: true, subtree: true });
+    update();
 }

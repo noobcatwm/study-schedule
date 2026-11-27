@@ -75,7 +75,7 @@ function syncVocabModeControls(group) {
     if (targetRow) targetRow.classList.toggle('hidden', !(mode === 'spelling' || mode === 'mixed'));
 }
 
-// 進階工具 > 單字庫 > 單元列表上方的下拉選單
+// 「單字」畫面 > 單字庫 > 單元列表上方的下拉選單
 function changeVocabGroupMode() {
     const group = vocabBanks.find(g => g.groupId === currentSelectedGroupId);
     if (!group) return;
@@ -83,6 +83,7 @@ function changeVocabGroupMode() {
     group.studyMode = VOCAB_STUDY_MODES.includes(mode) ? mode : 'flashcard';
     saveVocabBanks();
     syncVocabModeControls(group);
+    renderVocabManager(); // 單字庫清單上會顯示學習模式，一併更新
 }
 
 function changeVocabSpellTarget() {
@@ -91,6 +92,7 @@ function changeVocabSpellTarget() {
     group.spellTarget = (document.getElementById('vocab-spell-target-select').value === 'reading') ? 'reading' : 'word';
     saveVocabBanks();
     syncVocabModeControls(group);
+    renderVocabManager();
 }
 
 // ------------------------------------------
@@ -205,7 +207,7 @@ function addMeaningField(meaningsEl, value = '') {
 
 // meaning 可傳字串（單一意思）或陣列（多個意思）
 // 四個欄位：單字、意思（可多個）、讀音（單行）、補充（可換行）
-function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab-rows-container', note = '') {
+function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab-rows-container', note = '', id = '') {
     const container = document.getElementById(containerId);
     if (!container) {
         console.warn('找不到單字列容器：', containerId);
@@ -214,6 +216,7 @@ function addVocabRow(word = '', meaning = '', reading = '', containerId = 'vocab
 
     const row = document.createElement('div');
     row.className = 'vocab-row';
+    row.dataset.wordId = id || ''; // 既有單字沿用原編號，新增的列存檔時才配新編號
 
     // 用 DOM 屬性設定 value，單字含引號或 < > 時也不會破壞 HTML
     const wordInput = document.createElement('input');
@@ -294,7 +297,10 @@ function collectVocabRows(containerId) {
         const note = normalizeNoteText(row.querySelector('.input-note')?.value || '')
             .replace(/[ \t]+\n/g, '\n') // 每行行尾空白去掉
             .trim();                    // 頭尾空行去掉，中間換行保留
-        if (word || meanings.length > 0 || reading || note) result.push({ word, meanings, reading, note });
+        if (word || meanings.length > 0 || reading || note) {
+            if (!row.dataset.wordId) row.dataset.wordId = newWordId();
+            result.push({ id: row.dataset.wordId, word, meanings, reading, note });
+        }
     });
     return result;
 }
@@ -309,7 +315,7 @@ function fillVocabRows(containerId, words) {
         addVocabRow('', '', '', containerId);
         return;
     }
-    list.forEach(w => addVocabRow(w.word, w.meanings, w.reading, containerId, w.note));
+    list.forEach(w => addVocabRow(w.word, w.meanings, w.reading, containerId, w.note, w.id));
 }
 
 // ------------------------------------------
@@ -341,8 +347,10 @@ function saveVocabInput() {
             return;
         }
 
+        const prevWords = bank.words || [];
         bank.words = newWords;
         saveVocabBanks();
+        syncReviewTasksWithBank(bankId, prevWords, newWords); // 待複習單字跟著更新
 
         // 同一單元的第一階段任務：有單字才算「可開始」
         tasks.forEach(t => {
@@ -554,7 +562,6 @@ function completeVocabTask(taskId, unlearnedWords, messages) {
         // 待複習任務做完就結束，不再衍生新任務
         if (currentTask.type === 'vocab_review') {
             saveAndRefresh();
-            if (selectedDateStr) openDayModal(selectedDateStr);
             return;
         }
 
@@ -567,7 +574,7 @@ function completeVocabTask(taskId, unlearnedWords, messages) {
                 groupName: baseTitle,
                 type: 'vocab_review',
                 title: `待複習單字 (${currentTask.title})`, // 帶有原單元名稱
-                dueDate: selectedDateStr,
+                dueDate: currentTask.dueDate, // 待複習任務排在原任務當天
                 stage: 1,
                 vocabBankId: currentTask.vocabBankId,
                 isVocab: true,
@@ -580,10 +587,8 @@ function completeVocabTask(taskId, unlearnedWords, messages) {
             });
         }
 
-        saveAndRefresh();
+        saveAndRefresh(); // 同時刷新日曆、今天畫面與開著的日期視窗
     }
-
-    if (selectedDateStr) openDayModal(selectedDateStr);
 
     alert(unlearnedCount > 0 ? messages.withMiss : messages.allGood);
 }
@@ -645,16 +650,11 @@ function openVocabGroupDetail(taskId) {
 }
 
 // ------------------------------------------
-// 進階工具 → 單字庫管理（三層：主題 → 單元 → 單字）
+// 「單字」畫面 → 單字庫管理（三層：主題 → 單元 → 單字）
 // ------------------------------------------
 
-// 第一層：主題列表
-function openVocabManagerFromTools() {
-    closeModal('tools-modal');
-    openVocabManager();
-}
-
-function openVocabManager() {
+// 第一層：主題列表（直接畫在「單字」畫面上，不再是 Modal）
+function renderVocabManager() {
     const listContainer = document.getElementById('vocab-group-list');
     if (!listContainer) return;
     listContainer.innerHTML = '';
@@ -663,11 +663,12 @@ function openVocabManager() {
         listContainer.innerHTML = '<p style="text-align:center; opacity:0.5; padding: 20px 0;">目前沒有任何單字庫</p>';
     }
 
-    vocabBanks.forEach(group => {
+    vocabBanks.forEach((group, gi) => {
         const unitCount = (group.units || []).length;
 
         const row = document.createElement('div');
         row.className = 'vocab-item-row';
+        row.style.setProperty('--i', gi);
         row.innerHTML = `
             <div style="flex: 1; min-width: 0; margin-right: 10px; word-break: normal; overflow-wrap: anywhere;">
                 <strong>${escapeHtml(group.groupName || '未命名群組')}</strong>
@@ -680,14 +681,11 @@ function openVocabManager() {
         `;
         listContainer.appendChild(row);
     });
-
-    openModal('vocab-manager-modal');
 }
 
 // 第二層：某主題底下的單元列表
 function openVocabUnitsModal(groupId) {
     currentSelectedGroupId = groupId;
-    closeModal('vocab-manager-modal');
 
     const group = vocabBanks.find(g => g.groupId === groupId);
 
@@ -774,7 +772,7 @@ function deleteVocabUnit(unitId) {
         openVocabUnitsModal(currentSelectedGroupId);
     } else {
         closeModal('vocab-units-modal');
-        openVocabManager();
+        renderVocabManager();
     }
 }
 
@@ -798,7 +796,7 @@ function deleteVocabGroup(groupId) {
     saveAndRefresh();
 
     if (currentSelectedGroupId === groupId) currentSelectedGroupId = null;
-    openVocabManager(); // 重新整理主題列表
+    renderVocabManager(); // 重新整理主題列表
 }
 
 // 第三層：從單元列表進入，檢視 / 編輯單字
@@ -841,8 +839,10 @@ function saveVocabDetailModal() {
             alert('找不到單字庫，無法儲存。');
             return;
         }
+        const prevWords = bank.words || [];
         bank.words = newWords;
         saveVocabBanks();
+        syncReviewTasksWithBank(bank.id, prevWords, newWords); // 待複習單字跟著更新
     }
 
     saveAndRefresh();

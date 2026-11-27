@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.2.2";
+const APP_VERSION = "v1.2.3";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
@@ -17,6 +17,9 @@ const DB_COLORS = `recentColors_${DB_VERSION}`;
 const DB_THEME = `calendarTheme_${DB_VERSION}`;
 const DB_PRESETS = `quickPresets_${DB_VERSION}`; // 新增計畫的「快捷選擇」清單
 const DB_VOCAB_LAYOUT = `vocabLayout_${DB_VERSION}`; // 單字輸入/編輯視窗的版面偏好：row(直排) | stack(橫排)
+const DB_PALETTE = `uiPalette_${DB_VERSION}`; // 配色：morandi | paper | dusk
+const DB_ANIM = `uiAnimations_${DB_VERSION}`;   // 動畫：on | off
+const PALETTES = ['morandi', 'paper', 'dusk'];
 const REVIEW_INTERVALS = [0, 1, 4, 11, 25, 55];
 
 // 舊版 Key (用於向下相容相依性檢查)
@@ -28,14 +31,19 @@ let vocabBanks = [];
 let capacities = [];
 let recentColors = [];
 
-// 單字資料的標準格式：{ word: 單字, meanings: [意思, ...], reading: 讀音（單行）, note: 補充（可多行） }
+// 單字資料的標準格式：{ id: 編號, word: 單字, meanings: [意思, ...], reading: 讀音（單行）, note: 補充（可多行） }
 // 相容舊格式：
 //   - 純字串
 //   - 單一 meaning 字串的物件
 //   - 沒有 note 欄位的舊資料：「讀音/補充」原本合在同一欄，遷移時整段都放進補充，讀音留空
+// 每個單字有固定編號（id）：單字庫與「待複習單字」靠它對應同一個單字，單字庫修改後才能同步
+function newWordId() {
+  return 'w_' + (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+}
+
 function normalizeWordEntry(item) {
   if (typeof item === 'string') {
-    return { word: item, meanings: [], reading: '', note: '' };
+    return { id: newWordId(), word: item, meanings: [], reading: '', note: '' };
   }
   item = item || {};
 
@@ -65,6 +73,7 @@ function normalizeWordEntry(item) {
   }
 
   return {
+    id: item.id || newWordId(),
     word: item.word || '',
     meanings: meanings,
     reading: reading,
@@ -223,14 +232,49 @@ function migrateWordShapes() {
       if (Array.isArray(unit.words)) unit.words = upgrade(unit.words);
     });
   });
+  // 舊版「待複習單字」是沒有編號的複製品：用單字文字對回單字庫裡的同一個單字，並套用單字庫目前的內容
   tasks.forEach(t => {
-    if (Array.isArray(t.unlearnedWords)) t.unlearnedWords = upgrade(t.unlearnedWords);
+    if (!Array.isArray(t.unlearnedWords)) return;
+    let bank = null;
+    if (t.vocabBankId) {
+      vocabBanks.forEach(g => { (g.units || []).forEach(u => { if (u.id === t.vocabBankId) bank = u; }); });
+    }
+    t.unlearnedWords = t.unlearnedWords.map(w => {
+      if (w && typeof w === 'object' && w.id) return w;
+      const entry = normalizeWordEntry(w);
+      const match = bank && (bank.words || []).find(b => b.word === entry.word);
+      if (match) Object.assign(entry, normalizeWordEntry(match));
+      changed = true;
+      return entry;
+    });
+    t.unlearnedWords = upgrade(t.unlearnedWords);
   });
 
   if (changed) saveAllData();
   return changed;
 }
 migrateWordShapes();
+
+// 單字庫的單字改過之後，讓綁定這個單字庫的「待複習單字」任務同步：
+//   - 單字庫裡仍存在的單字：換成最新內容（改了意思、讀音、補充都會跟著變）
+//   - 已從單字庫刪除的單字：從待複習移除，題數跟著減少；全部刪光的待複習任務會一併移除
+//   - 待複習清單自己新增、單字庫沒有的單字：保留
+// 呼叫後由呼叫端負責存檔（saveAndRefresh）
+function syncReviewTasksWithBank(bankId, prevWords, newWords) {
+  const prevIds = new Set((prevWords || []).map(w => w.id).filter(Boolean));
+  const byId = new Map((newWords || []).map(w => [w.id, w]));
+  tasks = tasks.filter(t => {
+    if (t.type !== 'vocab_review' || t.vocabBankId !== bankId || !Array.isArray(t.unlearnedWords)) return true;
+    const before = t.unlearnedWords.length;
+    t.unlearnedWords = t.unlearnedWords.reduce((acc, w) => {
+      const current = byId.get(w.id);
+      if (current) acc.push(normalizeWordEntry(current));
+      else if (!prevIds.has(w.id)) acc.push(w);
+      return acc;
+    }, []);
+    return !(before > 0 && t.unlearnedWords.length === 0);
+  });
+}
 
 // 獨立儲存單字庫 (當在管理介面單獨修改單字內容時呼叫)
 function saveVocabBanks() {

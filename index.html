@@ -29,15 +29,51 @@
       <span>尚無近期考試</span>
     </div>
 
-    <div class="capacity-row" id="capacity-row"></div>
-    <div class="week-header">
-      <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
-    </div>
   </div>
 
-  <div class="calendar-scroll" id="calendar-scroll">
-    <div class="calendar-grid" id="calendar-grid"></div>
-  </div>
+  <!-- 三個主畫面：今天 / 日曆 / 單字 -->
+  <main class="views">
+    <!-- 今天：原本在日曆點「今天」會看到的內容 -->
+    <section class="view active" id="view-today">
+      <div class="view-scroll">
+        <div class="today-card">
+          <div class="modal-header">
+            <div class="modal-title" id="today-date">今天</div>
+          </div>
+          <div class="task-list" id="today-task-list"></div>
+          <button class="primary-btn" onclick="openAddTaskModal('today')">新增計畫</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 日曆：原本的行事曆畫面 -->
+    <section class="view" id="view-calendar">
+      <div class="calendar-head">
+        <div class="capacity-row" id="capacity-row"></div>
+        <div class="week-header">
+          <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+        </div>
+      </div>
+      <div class="calendar-scroll" id="calendar-scroll">
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </div>
+    </section>
+
+    <!-- 單字：原本「進階工具 > 檢視所有單字庫」的內容 -->
+    <section class="view" id="view-vocab">
+      <div class="view-scroll">
+        <div class="section-title" style="margin-top: 0;">所有單字庫</div>
+        <div id="vocab-group-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 底部切換列 -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="nav-btn active" data-view="today" onclick="switchView('today')">今天</button>
+    <button class="nav-btn" data-view="calendar" onclick="switchView('calendar')">日曆</button>
+    <button class="nav-btn" data-view="vocab" onclick="switchView('vocab')">單字</button>
+  </nav>
 
   <!-- Modal: 使用說明 -->
   <div class="modal-overlay" id="help-modal">
@@ -48,14 +84,16 @@
       </div>
       
       <div style="font-size: 0.9rem; line-height: 1.6; color: var(--text); display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+        <div><strong>底部三個畫面：</strong>「今天」顯示今天的計畫，可直接打勾、開始背單字或新增計畫；「日曆」是完整的行事曆；「單字」可管理所有單字庫。最上方的標題與重大考試倒數在每個畫面都會保留。</div>
+        <div><strong>外觀：</strong>到「進階工具」可選擇三種配色（莫蘭迪、墨綠紙、靜謐藍紫），也可以關閉動畫效果。</div>
         <div><strong>點擊日期格子：</strong>可檢視該日的計畫、新增任務、打勾完成或刪除。</div>
         <div><strong>負荷力：</strong>畫面上方標註「日」到「六」的數字代表你該星期的「每日最大負荷量」。當系統自動排程時，會根據這天的剩餘負荷量來塞入任務；如果滿了，就會自動順延到下一天，確保你每天的任務量都在可負荷範圍內！</div>
         <div><strong>間隔複習 (1-3-7-14-30)：</strong>根據「艾賓浩斯遺忘曲線」設計。當你新增此類任務時，系統會自動幫你在第 1、3、7、14、30 天安排複習任務，幫助你將短期記憶轉化為長期記憶，非常適合背單字。</div>
         <div><strong>拉動任務欄：</strong>任務欄可長按拖動至欲更改日期的位置。</div>
         <div><strong>輔助記憶單字：</strong>搭配單字書使用。第一階段輸入單字書內的單字，建議只挑選不會的，就能輕鬆複習。</div>
         <div><strong>輸入單字：</strong>每個單字有四個欄位：單字、意思、讀音、補充。輸入視窗右上角可切換「直排檢視」（一個單字一行，只顯示單字與意思）與「橫排檢視」（四個欄位各一橫行，要輸入讀音與補充請用這個）。一字多義時，按「＋ 意思」可新增多個意思，刷單字時會分行並加上編號。補充欄可直接按 Enter 換行，刷單字時會照樣換行。</div>
-        <div><strong>單字庫與週期計畫：</strong>刪除週期計畫只會移除行事曆上的任務，單字庫會保留。要刪除單字庫，請到「進階工具 > 檢視所有單字庫」，可刪除整個單字庫或其中的單一單元。</div>
-        <div><strong>學習模式：</strong>到「進階工具 > 檢視所有單字庫 > 檢視單元」可為每個單字庫選擇「單字卡」、「選擇題」、「拼寫」或「混合」（選擇題＋拼寫）。選擇題會把每個單字的每個意思各考兩次（看單字選意思、看意思選單字）。拼寫與混合模式可再選擇拼「單字」（看意思輸入單字，適合背英文）或拼「讀音」（看單字輸入讀音，適合背日文）。答錯的題目會在幾題之後再出現，答錯的單字也會加入待複習單字。</div>
+        <div><strong>單字庫與週期計畫：</strong>刪除週期計畫只會移除行事曆上的任務，單字庫會保留。要刪除單字庫，請到底部的「單字」畫面，可刪除整個單字庫或其中的單一單元。</div>
+        <div><strong>學習模式：</strong>到底部的「單字」畫面，點單字庫的「檢視單元」，可為每個單字庫選擇「單字卡」、「選擇題」、「拼寫」或「混合」（選擇題＋拼寫）。選擇題會把每個單字的每個意思各考兩次（看單字選意思、看意思選單字）。拼寫與混合模式可再選擇拼「單字」（看意思輸入單字，適合背英文）或拼「讀音」（看單字輸入讀音，適合背日文）。答錯的題目會在幾題之後再出現，答錯的單字也會加入待複習單字。</div>
         <div><strong>階段性任務與複習系統：</strong>背單字任務會自動切分為多個階段，完成當前階段後，系統會自動生成帶有原單元名稱的「待複習單字」任務，請翻開單字書再看看吧！</div>
       </div>
       
@@ -83,7 +121,17 @@
         <button class="close-btn" onclick="closeModal('tools-modal')">X</button>
       </div>
       
-      <div class="section-title" style="margin-top: 0;">全域操作</div>
+      <div class="section-title" style="margin-top: 0;">外觀</div>
+      <div class="task-list">
+        <div class="palette-picker" id="palette-picker">
+          <button class="palette-opt" data-palette="morandi" onclick="setPalette('morandi')"><span class="pal-dots"><i></i><i></i><i></i></span>莫蘭迪</button>
+          <button class="palette-opt" data-palette="paper" onclick="setPalette('paper')"><span class="pal-dots"><i></i><i></i><i></i></span>墨綠紙</button>
+          <button class="palette-opt" data-palette="dusk" onclick="setPalette('dusk')"><span class="pal-dots"><i></i><i></i><i></i></span>靜謐藍紫</button>
+        </div>
+        <label class="switch-row"><span>動畫效果</span><input type="checkbox" id="anim-toggle" onchange="setAnimations(this.checked)"></label>
+      </div>
+
+      <div class="section-title">全域操作</div>
       <div class="task-list">
         <button class="primary-btn" style="background: var(--primary); margin-bottom: 5px;" onclick="exportData()">
           匯出備份 (下載設定檔)
@@ -104,11 +152,6 @@
             清除指定月份
           </button>
         </div>
-
-        <button class="primary-btn" onclick="openVocabManagerFromTools()" style="width: 100%; padding: 12px; background: var(--sub-text); border: 1px solid var(--border); border-radius: 10px; font-size: 1rem; text-align: left; display: flex; justify-content: space-between; align-items: center;">
-          <span>檢視所有單字庫</span>
-          <span style="opacity: 0.5;">➔</span>
-        </button>
       </div>
 
       <div class="section-title">週期計畫管理 (Series)</div>
@@ -146,7 +189,7 @@
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label>標籤顏色</label>
-          <input type="color" id="preset-color" value="#0a84ff">
+          <input type="color" id="preset-color" value="#7d9d98">
         </div>
       </div>
       <button class="action-btn" onclick="addPreset()" style="width:100%; border:1px dashed var(--border);">＋ 新增快捷選擇</button>
@@ -214,7 +257,7 @@
       <div class="form-group" id="color-group">
         <label>主題標籤顏色</label>
         <div class="color-picker-row">
-          <input type="color" id="task-color" value="#0a84ff">
+          <input type="color" id="task-color" value="#7d9d98">
           <div class="recent-colors" id="recent-colors"></div>
         </div>
       </div>
@@ -267,6 +310,8 @@
         <button class="action-btn" onclick="closeModal('vocab-flashcard-modal')">退出</button>
       </div>
 
+      <div class="progress-track"><div class="progress-fill" id="vocab-progress-fill"></div></div>
+
       <!-- 3D 翻面卡片容器 (點擊即可觸發翻面) -->
       <div class="flashcard-container" onclick="toggleCardFlip(this)" style="margin-bottom: 20px;">
         <div class="flashcard" id="main-flashcard">
@@ -290,8 +335,8 @@
 
       <!-- 底部評分按鈕 (熟 / 不熟) -->
       <div style="display:flex; gap:15px; justify-content:center;">
-        <button class="action-btn" onclick="answerVocab(false)" style="flex:1; padding:12px; background:#ff3b30; color:white; border-radius:10px; border:none; cursor:pointer; font-weight:bold;">不熟</button>
-        <button class="action-btn" onclick="answerVocab(true)" style="flex:1; padding:12px; background:#34c759; color:white; border-radius:10px; border:none; cursor:pointer; font-weight:bold;">熟</button>
+        <button class="action-btn" onclick="answerVocab(false)" style="flex:1; padding:12px; background:var(--exam-red); color:#fff; border-radius:10px; border:none; cursor:pointer; font-weight:bold;">不熟</button>
+        <button class="action-btn" onclick="answerVocab(true)" style="flex:1; padding:12px; background:var(--success-green); color:#fff; border-radius:10px; border:none; cursor:pointer; font-weight:bold;">熟</button>
       </div>
 
     </div>
@@ -306,6 +351,8 @@
         <span id="quiz-progress" style="font-size:0.85rem; opacity:0.7;">1 / 10</span>
         <button class="action-btn" onclick="exitQuizSession()">退出</button>
       </div>
+
+      <div class="progress-track"><div class="progress-fill" id="quiz-progress-fill"></div></div>
 
       <div id="quiz-body">
         <!-- 題目卡與答題後的單字卡疊在同一位置：答題前顯示題目卡（不可翻面），答題後漸變成一般單字卡 -->
@@ -353,25 +400,12 @@
     </div>
   </div>
 
-  <!-- Modal 檢視/管理所有單字庫 -->
-  <div id="vocab-manager-modal" class="modal-overlay">
-    <!-- 設定 Flex 垂直佈局與 500px 基礎高度 -->
-    <div class="modal-content" style="display: flex; flex-direction: column; max-height: 90vh; height: 90vh;">
-      <h3 style="margin: 0;">檢視所有單字庫</h3>
-      
-      <!-- 讓單字庫清單 flex: 1 自動填滿中間空間，並加微邊框提升滾動質感 -->
-      <div id="vocab-group-list" style="flex: 1; overflow-y: auto; margin: 15px 0; border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px;"></div>
-      
-      <button class="action-btn" onclick="closeModal('vocab-manager-modal')" style="width:100%; margin-top: 5px;">關閉</button>
-    </div>
-  </div>
-  
   <!-- Modal 單元 Unit 列表 -->
   <div id="vocab-units-modal" class="modal-overlay">
     <div class="modal-content" style="display: flex; flex-direction: column; max-height: 90vh; height: 90vh;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <h3 id="vocab-units-title" style="margin: 0;">單元列表</h3>
-        <button class="action-btn" onclick="closeModal('vocab-units-modal'); openModal('vocab-manager-modal');">← 返回主題庫</button>
+        <button class="action-btn" onclick="closeModal('vocab-units-modal')">← 返回單字庫</button>
       </div>
       
       <!-- 學習模式：每個單字庫（主題）一種，套用到底下所有單元 -->

@@ -1,38 +1,39 @@
+/* ===== 配色：莫蘭迪（預設）／墨綠紙／靜謐藍紫，各有深、淺兩種 ===== */
 :root {
-    --bg: #000000;
-    --card-bg: #1c1c1e;
-    --text: #ffffff;
-    --sub-text: #8e8e93;
-    --primary: #0a84ff;
-    --accent: #0a84ff;
-    --exam-red: #ff453a;
-    --success-green: #32d74b;
-    --warning-orange: #ff9f0a;
-    --border: #333333;
+    --bg:#1e2123; --card-bg:#2a2e31; --text:#e9e5de; --sub-text:#9d9d97;
+    --primary:#5f7f79; --primary-ink:#9dbdb5; --accent:#5f7f79;
+    --exam-red:#c4817c; --success-green:#8fb08f; --warning-orange:#d0a977; --border:#3a4044;
+    --past-bg:#1a1d1f; --today-bg:#26332f; --shadow:0 -6px 24px rgba(0,0,0,.45);
 }
-/* 淺色主題變數 */
 body.light-theme {
-    --bg: #f2f2f7;
-    --card-bg: #ffffff;
-    --text: #000000;
-    --sub-text: #3c3c43;
-    --primary: #007aff;
-    --accent: #007aff;
-    --exam-red: #ff3b30;
-    --success-green: #34c759;
-    --warning-orange: #ff9500;
-    --border: #c7c7cc;
+    --bg:#ebe7e0; --card-bg:#f7f4ef; --text:#373a3c; --sub-text:#777873;
+    --primary:#5f7f79; --primary-ink:#4d6b66; --accent:#5f7f79;
+    --exam-red:#b4655f; --success-green:#6f956f; --warning-orange:#b98d58; --border:#d8d2c7;
+    --past-bg:#e1ddd4; --today-bg:#dde8e3; --shadow:0 -6px 24px rgba(70,60,50,.16);
 }
-
-/* 修正淺色模式下的過去日期與今天背景色 */
-body.light-theme .day-cell.past-day {
-    background: #e5e5ea;
+body[data-palette="paper"] {
+    --bg:#1c211d; --card-bg:#272d28; --text:#ece8dc; --sub-text:#9a9f92;
+    --primary:#4f7a62; --primary-ink:#9cc3a8; --accent:#4f7a62;
+    --exam-red:#c9766a; --success-green:#8fbf8a; --warning-orange:#d7b061; --border:#38403a;
+    --past-bg:#181c19; --today-bg:#25342b;
 }
-body.light-theme .day-cell.today {
-    background: #e1f5fe;
+body.light-theme[data-palette="paper"] {
+    --bg:#f1ede0; --card-bg:#fbf8ee; --text:#2b3028; --sub-text:#6f7568;
+    --primary:#3f6b52; --primary-ink:#35604a; --accent:#3f6b52;
+    --exam-red:#b4584c; --success-green:#5f9560; --warning-orange:#b58a2e; --border:#ddd6c2;
+    --past-bg:#e8e3d2; --today-bg:#dfe9d8;
 }
-body.light-theme .capacity-row input {
-    background: #ffffff;
+body[data-palette="dusk"] {
+    --bg:#171a26; --card-bg:#212536; --text:#e6e8f2; --sub-text:#9296ad;
+    --primary:#6b72b8; --primary-ink:#a9afe6; --accent:#6b72b8;
+    --exam-red:#d9808f; --success-green:#7fc4a8; --warning-orange:#d9b27c; --border:#31364d;
+    --past-bg:#131621; --today-bg:#252a45;
+}
+body.light-theme[data-palette="dusk"] {
+    --bg:#eceef7; --card-bg:#f9faff; --text:#26293d; --sub-text:#6b6f8a;
+    --primary:#5a62a8; --primary-ink:#4a5296; --accent:#5a62a8;
+    --exam-red:#c4586b; --success-green:#4f9e84; --warning-orange:#b88a4e; --border:#d3d7ea;
+    --past-bg:#e1e4f0; --today-bg:#dfe3f6;
 }
 
 * { 
@@ -349,7 +350,7 @@ body {
   width: 34px;
   height: 34px;
   flex-shrink: 0;
-  background: #ff4d4f;
+  background: var(--exam-red);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -641,3 +642,186 @@ body {
 }
 
 .form-divider { border-top: 1px solid var(--border); margin: 15px 0; }
+
+
+/* ==========================================
+   三個主畫面（今天 / 日曆 / 單字）與底部切換列
+   ========================================== */
+body { height: 100vh; height: 100dvh; }
+
+.views { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.view { display: none; flex: 1; min-height: 0; flex-direction: column; }
+.view.active { display: flex; }
+.view-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 15px 20px; }
+
+/* 日曆畫面頂部：負荷力輸入與星期列（原本在 header 內） */
+.calendar-head {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    padding-top: 6px;
+}
+
+/* 今天畫面 */
+.today-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+}
+.today-card .task-item { cursor: default; }
+.today-card .task-item:active { cursor: default; }
+
+/* 單字畫面的單字庫清單 */
+#vocab-group-list {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 10px;
+}
+
+/* 底部切換列 */
+.bottom-nav {
+    display: flex;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    z-index: 10;
+}
+.nav-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--sub-text);
+    padding: 12px 0;
+    font-size: 1rem;
+    cursor: pointer;
+}
+.nav-btn.active {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+
+/* ==========================================
+   視覺升級：質感、動畫、外觀設定
+   ========================================== */
+body, .header-area, .calendar-head, .bottom-nav, .today-card, .modal-content, .task-item, input, select {
+    transition: background-color .35s ease, border-color .35s ease, color .35s ease;
+}
+.action-btn, .primary-btn, .tools-btn, .nav-btn, .day-cell, .palette-opt {
+    transition: transform .15s ease, background-color .35s ease, border-color .35s ease, color .35s ease, box-shadow .3s ease;
+}
+.action-btn:active, .primary-btn:active, .tools-btn:active, .palette-opt:active { transform: scale(.95); }
+.nav-btn:active { transform: scale(.92); }
+.day-cell:active { transform: scale(.93); }
+
+.header-title { letter-spacing: .08em; }
+.month-divider, .section-title { color: var(--primary-ink); }
+.today .day-num, .nav-btn.active { color: var(--primary-ink); }
+.modal-overlay { background: rgba(20,22,24,.55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.modal-content { border-radius: 24px 24px 0 0; box-shadow: var(--shadow); }
+.today-card { box-shadow: var(--shadow); box-shadow: 0 6px 20px rgba(0,0,0,.12); }
+.task-item { border-radius: 12px; }
+.task-item.completed { opacity: .82; }
+.tools-btn, .action-btn { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.action-btn.complete-btn { background: var(--primary); }
+.action-btn.delete-btn { color: var(--exam-red); }
+.primary-btn { border-radius: 12px; box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 32%, transparent); }
+
+.exam-countdown-banner {
+    background: color-mix(in srgb, var(--exam-red) 14%, transparent);
+    border-color: color-mix(in srgb, var(--exam-red) 30%, transparent);
+}
+.exam-countdown-banner.empty { background: var(--card-bg); border-color: var(--border); }
+.day-cell { border-radius: 10px; }
+.day-cell.past-day { background: var(--past-bg); opacity: .6; }
+.day-cell.today { background: var(--today-bg); border: 1px solid var(--primary); }
+.day-cell.exam-day { box-shadow: inset 0 0 8px color-mix(in srgb, var(--exam-red) 35%, transparent); }
+.day-cell.all-completed { box-shadow: inset 0 0 6px color-mix(in srgb, var(--success-green) 28%, transparent); }
+.day-cell.today.all-completed { background: color-mix(in srgb, var(--success-green) 14%, var(--card-bg)); }
+.day-cell.drag-over { background: color-mix(in srgb, var(--primary) 25%, transparent) !important; }
+
+/* 下方切換列：滑動的選中標記 */
+.bottom-nav { position: relative; }
+.bottom-nav::before {
+    content: ""; position: absolute; top: 0; left: 0; width: 33.3333%; height: 3px;
+    border-radius: 0 0 3px 3px; background: var(--primary);
+    transform: translateX(calc(var(--idx, 0) * 100%));
+    transition: transform .38s cubic-bezier(.3,1.25,.4,1);
+}
+
+/* 進度條（單字卡 / 選擇題） */
+.progress-track { height: 5px; border-radius: 5px; background: var(--border); overflow: hidden; margin: -4px 0 16px; }
+.progress-fill { height: 100%; width: 0; background: var(--primary); border-radius: 5px; transition: width .4s cubic-bezier(.3,.9,.3,1); }
+
+/* 進階工具：外觀設定 */
+.palette-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.palette-opt {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 6px;
+    background: var(--bg); color: var(--text); border: 1.5px solid var(--border);
+    border-radius: 12px; cursor: pointer; font-size: .9rem;
+}
+.palette-opt.active { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent); }
+.pal-dots { display: flex; }
+.pal-dots i { width: 18px; height: 18px; border-radius: 50%; margin-left: -5px; border: 2px solid var(--card-bg); }
+.pal-dots i:first-child { margin-left: 0; }
+.palette-opt[data-palette="morandi"] i:nth-child(1) { background: #5f7f79; }
+.palette-opt[data-palette="morandi"] i:nth-child(2) { background: #d0a977; }
+.palette-opt[data-palette="morandi"] i:nth-child(3) { background: #c4817c; }
+.palette-opt[data-palette="paper"] i:nth-child(1) { background: #3f6b52; }
+.palette-opt[data-palette="paper"] i:nth-child(2) { background: #b58a2e; }
+.palette-opt[data-palette="paper"] i:nth-child(3) { background: #b4584c; }
+.palette-opt[data-palette="dusk"] i:nth-child(1) { background: #5a62a8; }
+.palette-opt[data-palette="dusk"] i:nth-child(2) { background: #d9b27c; }
+.palette-opt[data-palette="dusk"] i:nth-child(3) { background: #d9808f; }
+.switch-row {
+    display: flex; justify-content: space-between; align-items: center; margin: 0;
+    padding: 12px 14px; background: var(--bg); border-radius: 12px; font-size: 1rem; color: var(--text);
+}
+.switch-row input {
+    -webkit-appearance: none; appearance: none; width: 46px; height: 28px; padding: 0; border: none;
+    border-radius: 14px; background: var(--border); position: relative; cursor: pointer; flex-shrink: 0;
+    transition: background .25s;
+}
+.switch-row input::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; transition: transform .28s cubic-bezier(.3,1.3,.4,1);
+}
+.switch-row input:checked { background: var(--primary); }
+.switch-row input:checked::after { transform: translateX(18px); }
+
+/* ---------- 動畫（都是回應操作的：切換畫面、開關視窗、完成任務） ---------- */
+@keyframes viewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes overlayOut { to { opacity: 0; } }
+@keyframes sheetIn { from { transform: translateY(46px); opacity: .5; } to { transform: none; opacity: 1; } }
+@keyframes sheetOut { to { transform: translateY(60px); opacity: 0; } }
+@keyframes itemIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes donePop { 0% { transform: scale(1); } 40% { transform: scale(1.035); } 100% { transform: scale(1); } }
+@keyframes doneGlow {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success-green) 55%, transparent); }
+    100% { box-shadow: 0 0 0 14px transparent; }
+}
+@keyframes breathe {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 28%, transparent); }
+}
+@keyframes urgentPulse { 0%, 100% { opacity: 1; } 50% { opacity: .62; } }
+
+.view.active { animation: viewIn .34s cubic-bezier(.2,.8,.3,1); }
+.modal-overlay.active { animation: overlayIn .2s ease; }
+.modal-overlay.active .modal-content { animation: sheetIn .4s cubic-bezier(.2,.9,.25,1.08); }
+.modal-overlay.closing { animation: overlayOut .18s ease forwards; }
+.modal-overlay.closing .modal-content { animation: sheetOut .18s ease-in forwards; }
+.stagger > .task-item, .stagger > .vocab-item-row {
+    animation: itemIn .34s cubic-bezier(.2,.8,.3,1) both; animation-delay: calc(var(--i, 0) * 45ms);
+}
+.task-item.just-done { animation: donePop .45s ease, doneGlow .7s ease-out; }
+.day-cell.today { animation: breathe 3.6s ease-in-out infinite; }
+.exam-countdown-banner.urgent { animation: urgentPulse 2.4s ease-in-out infinite; }
+
+/* 關閉動畫：設定裡的開關，或系統開啟「減少動態效果」時 */
+body.no-anim *, body.no-anim *::before, body.no-anim *::after { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+}

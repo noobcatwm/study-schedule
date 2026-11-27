@@ -1,7 +1,7 @@
 // ==========================================
 // vocab-quiz.js：單字庫的「選擇題 / 拼寫 / 混合」模式
 //
-// 學習模式（每個單字庫一種，在進階工具設定）
+// 學習模式（每個單字庫一種，在「單字」畫面設定）
 //   choice    選擇題
 //   spelling  拼寫
 //   mixed     混合：拼寫題與選擇題打散在同一個序列裡（出題數量見下方「混合模式」）
@@ -307,7 +307,7 @@ function quizEmptyMessage(settings) {
     let need = '意思';
     if (needReading && needMeaning) need = '意思或讀音';
     else if (needReading) need = '讀音';
-    return `這個單字庫目前沒有可以出題的單字（單字需要填寫${need}）。\n請先補上，或到「進階工具 > 檢視所有單字庫」更改學習模式。`;
+    return `這個單字庫目前沒有可以出題的單字（單字需要填寫${need}）。\n請先補上，或到「單字」畫面更改學習模式。`;
 }
 
 function startQuizSession(task) {
