@@ -323,6 +323,7 @@ function startQuizSession(task) {
     const bank = getVocabWordbankForTask(task);
     activeQuizSession = {
         taskId: task.id,
+        practice: !!task.isPractice,
         vocabFont: (bank && bank.vocabFont) || 'default',
         settings: settings,
         pool: getQuizPool(task, entries),
@@ -348,6 +349,14 @@ function finishQuizSession() {
     const session = activeQuizSession;
     activeQuizSession = null;
     if (!session) return;
+
+    // 從單字庫直接開始的練習：沒有對應計畫，只提示結果
+    if (session.practice) {
+        alert(session.wrongWords.length > 0
+            ? `練習完成！有 ${session.wrongWords.length} 個單字答錯過。（從單字庫開始的練習不會新增待複習單字任務）`
+            : '太棒了！所有題目都答對了。');
+        return;
+    }
 
     completeVocabTask(session.taskId, session.wrongWords, {
         withMiss: `測驗完成！已自動為 ${session.wrongWords.length} 個答錯的單字新增「待複習單字」任務。`,

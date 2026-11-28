@@ -357,8 +357,12 @@ function buildTaskItemsHtml(dayTasks, draggable) {
         ? `onmousedown="initDrag(event, '${t.id}')" ontouchstart="initDrag(event, '${t.id}')"`
         : '';
 
+    // 進場動畫（stagger）會把透明度動畫成 1，播完移除後已完成的項目才瞬間變淡。
+    // 已完成的項目直接不播進場動畫，一開始就是淡色；剛打勾的那一項保留完成動畫。
+    const noEnterAnim = (t.isCompleted && t.id !== justCompletedId) ? ' animation: none;' : '';
+
     return `
-    <div class="task-item ${t.isCompleted ? 'completed' : ''} ${t.id === justCompletedId ? 'just-done' : ''}" style="--i:${i}; border-left-color: ${colorStyle}" ${dragAttrs}>
+    <div class="task-item ${t.isCompleted ? 'completed' : ''} ${t.id === justCompletedId ? 'just-done' : ''}" style="--i:${i}; border-left-color: ${colorStyle};${noEnterAnim}" ${dragAttrs}>
         <div class="task-info">
         <div class="task-title">${escapeHtml(t.title)}</div>
         <div class="task-meta">${badge} | 負荷: ${t.weight || 0}</div>

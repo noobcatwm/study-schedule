@@ -371,7 +371,27 @@ function saveVocabInput() {
 function startVocabSession(taskId) {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
+    launchVocabSession(task);
+}
 
+// 從「單字」畫面的單元直接開始測驗（沒有對應的計畫）：
+// 用一個暫時的「練習」任務走同一套流程（依主題的學習模式：單字卡 / 選擇題 / 拼寫 / 混合），
+// 結束時不會標記任何計畫完成，也不會新增待複習單字任務。
+function startVocabUnitSession(unitId) {
+    const unit = doubleFind(unitId);
+    if (!unit) {
+        alert('找不到該單字庫！');
+        return;
+    }
+    // 確保測驗視窗疊在單元列表視窗之上
+    ['vocab-flashcard-modal', 'vocab-quiz-modal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) document.body.appendChild(el);
+    });
+    launchVocabSession({ id: null, isPractice: true, type: 'practice', vocabBankId: unit.id });
+}
+
+function launchVocabSession(task) {
     const wordsList = getWordsForTask(task);
     if (wordsList.length === 0) {
         alert('這個單元還沒有單字喔！請先輸入單字。');
@@ -388,6 +408,7 @@ function startVocabSession(taskId) {
 
     activeVocabSession = {
         taskId: task.id,
+        practice: !!task.isPractice,
         unlearnedWords: ensureUpgradedWords(wordsList),
         unlearnedNext: [],
         currentIndex: 0,
@@ -541,9 +562,20 @@ function answerVocab(isKnown) {
 function finishVocabSession() {
     closeModal('vocab-flashcard-modal');
 
-    if (!activeVocabSession || !activeVocabSession.taskId) return;
+    if (!activeVocabSession) return;
 
     const unlearnedCount = activeVocabSession.unlearnedNext.length;
+
+    // 從單字庫直接開始的練習：沒有對應計畫，只提示結果
+    if (activeVocabSession.practice) {
+        alert(unlearnedCount > 0
+            ? `練習完成！有 ${unlearnedCount} 個不熟的單字。（從單字庫開始的練習不會新增待複習單字任務）`
+            : '太棒了！所有單字皆已掌握。');
+        return;
+    }
+
+    if (!activeVocabSession.taskId) return;
+
     completeVocabTask(activeVocabSession.taskId, activeVocabSession.unlearnedNext, {
         withMiss: `測驗完成！已自動為 ${unlearnedCount} 個不熟單字新增「待複習單字」任務。`,
         allGood: '太棒了！所有單字皆已掌握，無須新增待複習卡片！'
@@ -707,16 +739,21 @@ function openVocabUnitsModal(groupId) {
             const wordCount = (unit.words || []).length;
             const displayName = unit.name || unit.title || '未命名單元';
 
+            // 標題自成一行（太長會換成多行），按鈕獨立排在下一行
             const row = document.createElement('div');
             row.className = 'vocab-item-row';
+            row.style.flexDirection = 'column';
+            row.style.alignItems = 'stretch';
+            row.style.gap = '10px';
             row.innerHTML = `
-                <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px;">
+                <div style="min-width: 0; word-break: normal; overflow-wrap: anywhere;">
                     <strong>${escapeHtml(displayName)}</strong>
-                    <span style="font-size: 0.85rem; opacity: 0.7; margin-left: 6px;">(${wordCount} 個單字)</span>
+                    <span style="font-size: 0.85rem; opacity: 0.7; margin-left: 6px; white-space: nowrap;">(${wordCount} 個單字)</span>
                 </div>
-                <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                    <button class="action-btn" onclick="openVocabBankDetail('${unit.id}')">檢視/編輯</button>
-                    <button class="action-btn delete-btn" onclick="deleteVocabUnit('${unit.id}')">刪除</button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="action-btn" style="flex: 1;" onclick="openVocabBankDetail('${unit.id}')">檢視/編輯</button>
+                    <button class="action-btn" style="flex: 1;" onclick="startVocabUnitSession('${unit.id}')">開始</button>
+                    <button class="action-btn delete-btn" style="flex: 1;" onclick="deleteVocabUnit('${unit.id}')">刪除</button>
                 </div>
             `;
             listContainer.appendChild(row);

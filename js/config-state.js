@@ -1,4 +1,4 @@
-const APP_VERSION = "v1.2.3";
+const APP_VERSION = "v1.2.4";
 
 const modalContent = document.querySelector('#tools-modal .modal-content');
 if (modalContent) {
